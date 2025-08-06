@@ -2,11 +2,121 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <!-- Thẻ meta này sẽ chuyển hướng trang sau 0 giây -->
-    <meta http-equiv="refresh" content="0; url=./user/index.html">
-    <title>Đang chuyển hướng...</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang chủ - Ôn thi</title>
+    <!-- Nếu bạn có file style.css, hãy đảm bảo các style dưới đây được đưa vào đó -->
+    <link rel="stylesheet" href="style.css"> 
+    <style>
+        /* Đảm bảo HTML và Body chiếm toàn bộ màn hình */
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif; /* Thêm font chữ mặc định cho đẹp */
+            overflow: hidden; /* Ngăn cuộn trang nếu không cần thiết */
+        }
+
+        /* Container chứa ảnh nền và lớp phủ */
+        body {
+            background-color: #b4ddf8;
+            position: relative; /* Quan trọng để định vị lớp phủ */
+            height: 100vh; /* Chiếm 100% chiều cao của viewport */
+            width: 100%; /* Chiếm 100% chiều rộng */            
+            display: flex; /* Dùng flexbox để căn giữa nội dung */
+            flex-direction: column; /* Sắp xếp các mục theo chiều dọc */
+            justify-content: center; /* Căn giữa theo chiều dọc */
+            align-items: center; /* Căn giữa theo chiều ngang */
+            padding: 20px; /* Thêm padding tổng thể cho nội dung */
+            box-sizing: border-box; /* Đảm bảo padding không làm tràn container */
+        }
+        .container{
+            background-color: #d1eff0;
+        }
+
+        /* Lớp phủ màu trắng trong suốt */
+        
+
+        /* Tiêu đề */
+        h1 {
+            color: #3610108c;
+            font-size: 40px;
+            text-align: center;
+
+            margin-bottom: 40px; /* Khoảng cách với menu */
+            position: relative; /* Đặt lên trên lớp phủ */
+            z-index: 2; /* Cao hơn lớp phủ */
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1); /* Thêm hiệu ứng đổ bóng cho chữ */
+        }
+
+        /* Menu chính */
+        .main-menu {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            width: 100%; /* Chiếm toàn bộ chiều rộng có thể */
+            max-width: 500px; /* Giới hạn chiều rộng cho menu */
+            position: relative; /* Đặt lên trên lớp phủ */
+            z-index: 2; /* Cao hơn lớp phủ */
+        }
+
+        /* Nút trong menu */
+        .menu-button {
+            display: block;
+            width: 80%; /* Chiếm 80% chiều rộng của main-menu */
+            max-width: 400px;
+            padding: 20px; /* Giảm padding một chút để vừa vặn hơn */
+            font-size: 22px; /* Giảm kích thước font một chút */
+            font-weight: bold;
+            text-align: center;
+            text-decoration: none;
+            color: white;
+            border-radius: 8px;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Thêm đổ bóng mặc định */
+            box-sizing: border-box; /* Đảm bảo padding không làm tăng kích thước */
+            margin: 0 auto; /* Căn giữa nút trong main-menu */
+        }
+        .menu-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3); /* Đổ bóng mạnh hơn khi hover */
+        }
+
+        /* Màu sắc cho từng loại nút */
+        .btn-knowledge { background-color: #007bff; }
+        .btn-knowledge:hover { background-color: #0056b3; } /* Màu hover đậm hơn */
+
+        .btn-test { background-color: #28a745; }
+        .btn-test:hover { background-color: #1e7e34; }
+
+        .btn-result { background-color: #ffc107; color: #212529; }
+        .btn-result:hover { background-color: #e0a800; }
+    </style>
 </head>
 <body>
-    <p>Nếu bạn không được tự động chuyển hướng, vui lòng <a href="./user/index.html">nhấp vào đây</a>.</p>
+    <div class="container">
+        <!-- Lớp phủ background -->
+        <div class="background-overlay"></div>
+        
+        <!-- Nội dung chính -->
+         <center>        
+            <img src="assets/logo1.png" width="300px">\
+        </center>
+        <h1> PRACTICE AND TEST</h1>
+         
+        <div class="main-menu">
+            <a href="./knowledge/" class="menu-button btn-knowledge">Knowledge</a>
+            <a href="./user/" class="menu-button btn-test">Test</a>
+            <a href="./results/" class="menu-button btn-result">Result</a>
+        </div>
+        <br>
+        <br>
+        <br>
+        <br>
+        <center>        
+            <img src="assets/logo.png" width="200px">
+        </center>
+        <br>
+    </div>
 </body>
 </html>

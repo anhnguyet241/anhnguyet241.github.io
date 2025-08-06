@@ -1,0 +1,52 @@
+<!-- /results/index.html - Thay thế toàn bộ -->
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Result</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        .result-card { background: #fff; border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;}
+        .result-card-info p { margin: 5px 0; }
+        .result-card .status-pending { color: #ffc107; font-weight: bold; }
+        .result-card .status-graded { color: #28a745; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../" style="text-decoration: none; color: #007bff;">← Back to Main</a>
+        <h1>Result</h1>
+        <div class="form-group" style="display: flex; gap: 10px;">
+            <input type="text" id="search-name" class="form-control" placeholder="Enter your name to check">
+            <button id="search-btn" class="btn btn-primary">Search</button>
+        </div>
+        <hr>
+        <div id="results-history-container">
+            <p>Enter your name to check.</p>
+        </div>
+    </div>
+
+    <!-- Modal for Result Details (MỚI) -->
+    <div id="result-detail-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">×</span>
+            <h2 id="modal-title">Chi tiết bài làm</h2>
+            <div id="detail-quiz-info"></div>
+            <hr>
+            <div id="detail-answers-container">
+                <!-- Chi tiết từng câu hỏi sẽ được chèn vào đây -->
+            </div>
+            <div class="modal-footer" style="text-align: center;">
+                <button class="btn btn-secondary close-modal-btn">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

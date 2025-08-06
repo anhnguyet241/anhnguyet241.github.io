@@ -1,0 +1,83 @@
+<!-- /knowledge/index.html -->
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+            .tab-nav { border-bottom: 2px solid #dee2e6; margin-bottom: 20px; }
+            .tab-button { background: none; border: none; padding: 10px 15px; cursor: pointer; font-size: 16px; margin-bottom: -2px;}
+            .tab-button.active { border-bottom: 2px solid #007bff; font-weight: bold; color: #007bff; }
+            .tab-content { display: none; }
+            .tab-content.active { display: block; }
+            .knowledge-card { background: #fff; border: 1px solid #ddd; border-left: 5px solid #007bff; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
+            .knowledge-card h3 { margin-top: 0; }
+            .knowledge-card img { max-width: 100%; height: auto; margin-top: 10px; border-radius: 5px; }
+
+            /* === CSS CẦN THIẾT CHO COLLAPSE/EXPAND === */
+            .article-content {
+                max-height: 4.5em; /* Giới hạn chiều cao tương đương 3 dòng */
+                overflow: hidden;
+                position: relative;
+                line-height: 1.5em; /* Đảm bảo tính toán chiều cao chính xác */
+                transition: max-height 0.4s ease-out;
+            }
+            .article-content.expanded {
+                max-height: 2000px; /* Một giá trị đủ lớn để chứa mọi nội dung */
+                transition: max-height 0.4s ease-in;
+            }
+            /* Lớp phủ mờ dần ở cuối khi chưa mở rộng */
+            .article-content:not(.expanded)::after {
+                content: '';
+                position: absolute;
+                bottom: 0;
+                right: 0;
+                width: 100%;
+                height: 1.5em; /* Chiều cao bằng 1 dòng */
+                background: linear-gradient(to top, white, rgba(255, 255, 255, 0));
+            }
+            .toggle-expand {
+                color: #007bff;
+                cursor: pointer;
+                font-weight: bold;
+                margin-top: 5px;
+                display: inline-block;
+            }
+            /* === KẾT THÚC CSS CẦN THIẾT === */
+        </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../" style="text-decoration: none; color: #007bff;">← Back to Main</a>
+        <h1>Knowledge</h1>
+
+        <div class="tab-nav">
+            <button class="tab-button active" data-tab="words">New words</button>
+            <button class="tab-button" data-tab="articles">Professional knowledge</button>
+            <button class="tab-button" data-tab="discuss">Discuss</button>
+        </div>
+
+        <div id="tab-words" class="tab-content active">
+            <h2>New words</h2>
+            <div id="words-container"><p>Đang tải...</p></div>
+        </div>
+
+        <div id="tab-articles" class="tab-content">
+            <h2>Professional knowledge</h2>
+            <div id="articles-container"><p>Đang tải...</p></div>
+        </div>
+        
+        <div id="tab-discuss" class="tab-content">
+            <h2>Discuss</h2>
+            <p>coming soon!</p>
+        </div>
+    </div>
+    <!-- SDKs and Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

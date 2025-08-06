@@ -1,0 +1,92 @@
+<!-- /admin/knowledge.html -->
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Quản lý Kiến thức</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        .tab-nav { border-bottom: 2px solid #dee2e6; margin-bottom: 20px; }
+        .tab-button { background: none; border: none; padding: 10px 15px; cursor: pointer; font-size: 16px; margin-bottom: -2px;}
+        .tab-button.active { border-bottom: 2px solid #007bff; font-weight: bold; color: #007bff; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Quản lý Kiến thức</h1>
+        <div id="admin-nav-container"></div>
+        
+        <div class="tab-nav">
+            <button class="tab-button active" data-tab="words">Từ mới</button>
+            <button class="tab-button" data-tab="articles">Kiến thức chuyên môn</button>
+        </div>
+
+        <!-- Tab Content for New Words -->
+        <div id="tab-words" class="tab-content active">
+            <form id="word-form" novalidate style="border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+                <h3 id="word-form-title">Thêm Từ mới</h3>
+                <input type="hidden" id="word-id">
+                <div class="form-group">
+                    <label for="word-term">Từ mới:</label>
+                    <input type="text" id="word-term" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="word-meaning">Nghĩa của từ:</label>
+                    <input type="text" id="word-meaning" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="word-explanation">Giải thích:</label>
+                    <textarea id="word-explanation" class="form-control"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="word-example">Ví dụ:</label>
+                    <textarea id="word-example" class="form-control"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="word-imageUrl">Link ảnh minh họa (tùy chọn):</label>
+                    <input type="url" id="word-imageUrl" class="form-control">
+                </div>
+                <button type="submit" class="btn btn-success">Lưu Từ mới</button>
+                <button type="button" id="word-cancel-btn" class="btn btn-secondary" style="display: none;">Hủy</button>
+            </form>
+            <h3>Danh sách Từ mới</h3>
+            <table class="styled-table">
+                <thead><tr><th>Từ</th><th>Nghĩa</th><th>Hành động</th></tr></thead>
+                <tbody id="words-list"></tbody>
+            </table>
+        </div>
+
+        <!-- Tab Content for Articles -->
+        <div id="tab-articles" class="tab-content">
+             <form id="article-form" novalidate style="border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+                <h3 id="article-form-title">Thêm Bài viết</h3>
+                <input type="hidden" id="article-id">
+                <div class="form-group">
+                    <label for="article-title">Tiêu đề:</label>
+                    <input type="text" id="article-title" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="article-content">Nội dung:</label>
+                    <textarea id="article-content" class="form-control" rows="10"></textarea>
+                </div>
+                <button type="submit" class="btn btn-success">Lưu Bài viết</button>
+                <button type="button" id="article-cancel-btn" class="btn btn-secondary" style="display: none;">Hủy</button>
+            </form>
+            <h3>Danh sách Bài viết</h3>
+            <table class="styled-table">
+                <thead><tr><th>Tiêu đề</th><th>Hành động</th></tr></thead>
+                <tbody id="articles-list"></tbody>
+            </table>
+        </div>
+    </div>
+    <!-- SDKs and Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/knowledge.js"></script>
+</body>
+</html>
