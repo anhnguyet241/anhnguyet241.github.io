@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelBtn = document.getElementById('cancel-btn');
 
     const questionIdInput = document.getElementById('question-id');
+    const questionTopicInput = document.getElementById('question-topic'); // Element mới
     const questionTypeSelect = document.getElementById('question-type');
     const questionTextInput = document.getElementById('question-text');
 
@@ -34,14 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addMatchingPair = (prompt = '', answer = '') => {
         const pairDiv = document.createElement('div');
         pairDiv.className = 'form-group matching-pair-row';
-        pairDiv.innerHTML = `
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <input type="text" class="form-control matching-prompt" placeholder="Vế A (câu hỏi)" value="${prompt}">
-                <span>↔️</span>
-                <input type="text" class="form-control matching-answer" placeholder="Vế B (đáp án)" value="${answer}">
-                <button type="button" class="btn btn-danger remove-pair-btn">×</button>
-            </div>
-        `;
+        pairDiv.innerHTML = `<div style="display: flex; gap: 10px; align-items: center;"><input type="text" class="form-control matching-prompt" placeholder="Vế A (câu hỏi)" value="${prompt}"><span>↔️</span><input type="text" class="form-control matching-answer" placeholder="Vế B (đáp án)" value="${answer}"><button type="button" class="btn btn-danger remove-pair-btn">×</button></div>`;
         matchingPairsContainer.appendChild(pairDiv);
         pairDiv.querySelector('.remove-pair-btn').addEventListener('click', () => pairDiv.remove());
     };
@@ -69,6 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
         questionIdInput.value = doc.id;
         modalTitle.textContent = 'Sửa câu hỏi';
 
+        // ĐIỀN DỮ LIỆU CHỦ ĐỀ
+        questionTopicInput.value = qData.topic || ''; 
+
         questionTextInput.value = qData.text;
         questionTypeSelect.value = qData.type;
         questionTypeSelect.disabled = true;
@@ -85,9 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'matching':
                 if (qData.pairs && qData.pairs.length > 0) {
                     qData.pairs.forEach(pair => addMatchingPair(pair.prompt, pair.answer));
-                } else {
-                    addMatchingPair();
-                }
+                } else { addMatchingPair(); }
                 break;
             case 'essay':
                 document.getElementById('max-points').value = qData.maxPoints;
@@ -102,15 +97,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const tr = document.createElement('tr');
         tr.setAttribute('data-id', doc.id);
         const qData = doc.data();
-        const typeMap = { 'multiple-choice': 'Trắc nghiệm', 'matching': 'Nối đáp án', 'essay': 'Tự luận' };
+        const typeMap = { 'multiple-choice': 'Trắc nghiệm', 'matching': 'Nối', 'essay': 'Tự luận' };
+        
+        // HIỂN THỊ DỮ LIỆU CHỦ ĐỀ
         tr.innerHTML = `
-            <td>${qData.text.substring(0, 50)}${qData.text.length > 50 ? '...' : ''}</td>
+            <td>${qData.text.substring(0, 40)}${qData.text.length > 40 ? '...' : ''}</td>
             <td>${typeMap[qData.type] || 'Không rõ'}</td>
+            <td><strong>${qData.topic || 'Chưa có'}</strong></td>
             <td>${qData.timestamp ? qData.timestamp.toDate().toLocaleDateString('vi-VN') : 'N/A'}</td>
-            <td>
-                <button class="btn btn-warning edit-btn">Sửa</button>
-                <button class="btn btn-danger delete-btn">Xóa</button>
-            </td>
+            <td><button class="btn btn-warning edit-btn">Sửa</button><button class="btn btn-danger delete-btn">Xóa</button></td>
         `;
         questionsList.appendChild(tr);
         tr.querySelector('.edit-btn').addEventListener('click', () => openEditModal(doc));
@@ -122,27 +117,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     questionForm.addEventListener('submit', (e) => {
-        e.preventDefault(); // Luôn ngăn chặn hành vi mặc định
+        e.preventDefault();
         
         const id = questionIdInput.value;
-        let questionData = { type: questionTypeSelect.value };
+        // LẤY DỮ LIỆU CHỦ ĐỀ
+        let questionData = { 
+            type: questionTypeSelect.value,
+            topic: questionTopicInput.value.trim().toUpperCase(), // Viết hoa cho đồng nhất
+            text: questionTextInput.value.trim() 
+        };
 
-        // --- BẮT ĐẦU KIỂM TRA DỮ LIỆU THỦ CÔNG ---
-        questionData.text = questionTextInput.value.trim();
-        if (!questionData.text) {
-            alert('Vui lòng nhập nội dung câu hỏi.');
-            return;
-        }
+        if (!questionData.text) { alert('Vui lòng nhập nội dung câu hỏi.'); return; }
+        // Yêu cầu nhập chủ đề
+        if (!questionData.topic) { alert('Vui lòng nhập một chủ đề cho câu hỏi.'); return; }
 
         switch (questionData.type) {
             case 'multiple-choice':
                 const options = {};
                 const optA = document.getElementById('option-a').value.trim();
                 const optB = document.getElementById('option-b').value.trim();
-                if (!optA || !optB) {
-                    alert('Vui lòng nhập ít nhất lựa chọn A và B.');
-                    return;
-                }
+                if (!optA || !optB) { alert('Vui lòng nhập ít nhất lựa chọn A và B.'); return; }
                 options.A = optA;
                 options.B = optB;
                 if (document.getElementById('option-c').value.trim()) options.C = document.getElementById('option-c').value.trim();
@@ -150,7 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 questionData.options = options;
                 questionData.correct = document.getElementById('correct-answer').value;
                 break;
-
             case 'matching':
                 const pairs = [];
                 document.querySelectorAll('#matching-pairs-container .matching-pair-row').forEach(pairDiv => {
@@ -158,25 +151,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const answer = pairDiv.querySelector('.matching-answer').value.trim();
                     if (prompt && answer) pairs.push({ prompt, answer });
                 });
-                if (pairs.length === 0) {
-                     alert("Vui lòng nhập ít nhất một cặp nối.");
-                     return;
-                }
+                if (pairs.length === 0) { alert("Vui lòng nhập ít nhất một cặp nối."); return; }
                 questionData.pairs = pairs;
                 break;
-
             case 'essay':
                 const maxPoints = parseInt(document.getElementById('max-points').value, 10);
-                if (isNaN(maxPoints) || maxPoints < 1) {
-                    alert("Điểm tối đa cho câu tự luận phải là một số lớn hơn 0.");
-                    return;
-                }
+                if (isNaN(maxPoints) || maxPoints < 1) { alert("Điểm tối đa cho câu tự luận phải là một số lớn hơn 0."); return; }
                 questionData.maxPoints = maxPoints;
                 break;
         }
-        // --- KẾT THÚC KIỂM TRA DỮ LIỆU ---
-
-        // Nếu mọi thứ đều hợp lệ, tiến hành lưu hoặc cập nhật
+        
         if (id) {
             db.collection('questions').doc(id).update(questionData).then(closeModal).catch(err => console.error("Update error: ", err));
         } else {

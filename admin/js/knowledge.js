@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => {
             tabButtons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            
             tabContents.forEach(content => content.classList.remove('active'));
             document.getElementById(`tab-${button.dataset.tab}`).classList.add('active');
         });
@@ -20,10 +19,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordsList = document.getElementById('words-list');
     const wordCancelBtn = document.getElementById('word-cancel-btn');
 
+    const wordEnglishInput = document.getElementById('word-english');
+    const wordChineseInput = document.getElementById('word-chinese');
+    const wordVietnameseInput = document.getElementById('word-vietnamese');
+    const wordExplanationInput = document.getElementById('word-explanation');
+    const wordExampleInput = document.getElementById('word-example');
+    const wordImageUrlInput = document.getElementById('word-imageUrl');
+    const wordFormTitle = document.getElementById('word-form-title');
+
     const resetWordForm = () => {
         wordForm.reset();
         wordIdInput.value = '';
-        document.getElementById('word-form-title').textContent = 'Thêm Từ mới';
+        wordFormTitle.textContent = 'Thêm Từ mới';
         wordCancelBtn.style.display = 'none';
     };
 
@@ -32,15 +39,16 @@ document.addEventListener('DOMContentLoaded', () => {
     wordForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const wordData = {
-            word: document.getElementById('word-term').value.trim(),
-            meaning: document.getElementById('word-meaning').value.trim(),
-            explanation: document.getElementById('word-explanation').value.trim(),
-            example: document.getElementById('word-example').value.trim(),
-            imageUrl: document.getElementById('word-imageUrl').value.trim()
+            english_word: wordEnglishInput.value.trim(),
+            chinese_word: wordChineseInput.value.trim(),
+            vietnamese_meaning: wordVietnameseInput.value.trim(),
+            explanation: wordExplanationInput.value.trim(),
+            example: wordExampleInput.value.trim(),
+            imageUrl: wordImageUrlInput.value.trim()
         };
 
-        if (!wordData.word || !wordData.meaning) {
-            alert('Vui lòng nhập Từ mới và Nghĩa của từ.');
+        if (!wordData.english_word || !wordData.chinese_word || !wordData.vietnamese_meaning) {
+            alert('Vui lòng nhập đủ thông tin Tiếng Anh, Tiếng Trung và nghĩa Tiếng Việt.');
             return;
         }
 
@@ -64,8 +72,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = doc.data();
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${data.word}</td>
-                <td>${data.meaning}</td>
+                <td>${data.english_word}</td>
+                <td>${data.chinese_word}</td>
+                <td>${data.vietnamese_meaning}</td>
                 <td>
                     <button class="btn btn-warning btn-sm edit-word">Sửa</button>
                     <button class="btn btn-danger btn-sm delete-word">Xóa</button>
@@ -75,17 +84,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             tr.querySelector('.edit-word').addEventListener('click', () => {
                 wordIdInput.value = doc.id;
-                document.getElementById('word-term').value = data.word;
-                document.getElementById('word-meaning').value = data.meaning;
-                document.getElementById('word-explanation').value = data.explanation;
-                document.getElementById('word-example').value = data.example;
-                document.getElementById('word-imageUrl').value = data.imageUrl || '';
-                document.getElementById('word-form-title').textContent = 'Sửa Từ mới';
+                wordEnglishInput.value = data.english_word || '';
+                wordChineseInput.value = data.chinese_word || '';
+                wordVietnameseInput.value = data.vietnamese_meaning || '';
+                wordExplanationInput.value = data.explanation || '';
+                wordExampleInput.value = data.example || '';
+                wordImageUrlInput.value = data.imageUrl || '';
+                wordFormTitle.textContent = 'Sửa Từ mới';
                 wordCancelBtn.style.display = 'inline-block';
                 window.scrollTo(0, 0);
             });
             tr.querySelector('.delete-word').addEventListener('click', async () => {
-                if (confirm(`Xóa từ "${data.word}"?`)) {
+                if (confirm(`Xóa từ "${data.english_word}"?`)) {
                     await db.collection('knowledge_words').doc(doc.id).delete();
                 }
             });
@@ -97,11 +107,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const articleIdInput = document.getElementById('article-id');
     const articlesList = document.getElementById('articles-list');
     const articleCancelBtn = document.getElementById('article-cancel-btn');
+    const articleTitleInput = document.getElementById('article-title');
+    const articleFormTitle = document.getElementById('article-form-title');
+
+    const quill = new Quill('#quill-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'align': [] }],
+                ['link', 'image', 'video'],
+                ['clean']
+            ]
+        },
+        placeholder: 'Soạn thảo nội dung bài viết ở đây...'
+    });
 
     const resetArticleForm = () => {
         articleForm.reset();
         articleIdInput.value = '';
-        document.getElementById('article-form-title').textContent = 'Thêm Bài viết';
+        quill.root.innerHTML = '';
+        articleFormTitle.textContent = 'Thêm Bài viết';
         articleCancelBtn.style.display = 'none';
     };
     
@@ -109,15 +137,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     articleForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const articleData = {
-            title: document.getElementById('article-title').value.trim(),
-            content: document.getElementById('article-content').value.trim(),
-        };
+        const title = articleTitleInput.value.trim();
+        const contentHTML = quill.root.innerHTML;
 
-        if (!articleData.title || !articleData.content) {
+        if (!title || contentHTML === '<p><br></p>') {
             alert('Vui lòng nhập Tiêu đề và Nội dung.');
             return;
         }
+
+        const articleData = {
+            title: title,
+            content: contentHTML,
+        };
 
         const id = articleIdInput.value;
         try {
@@ -149,9 +180,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             tr.querySelector('.edit-article').addEventListener('click', () => {
                 articleIdInput.value = doc.id;
-                document.getElementById('article-title').value = data.title;
-                document.getElementById('article-content').value = data.content;
-                document.getElementById('article-form-title').textContent = 'Sửa Bài viết';
+                articleTitleInput.value = data.title;
+                quill.root.innerHTML = data.content;
+                articleFormTitle.textContent = 'Sửa Bài viết';
                 articleCancelBtn.style.display = 'inline-block';
                  window.scrollTo(0, 0);
             });

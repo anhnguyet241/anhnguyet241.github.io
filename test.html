@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang Đăng Bài Với QuillJS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 25px;
+        }
+        form label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        form input[type="text"] {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        #editor-container { /* Vùng chứa cho Quill editor */
+            height: 400px; /* Chiều cao của editor */
+            margin-bottom: 20px;
+            border: 1px solid #ddd; /* Để thấy rõ khung editor */
+            border-radius: 4px;
+        }
+        form button {
+            display: block;
+            width: 100%;
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        form button:hover {
+            background-color: #0056b3;
+        }
+        #postContentDisplay {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px dashed #ccc;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        #postContentDisplay h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        #postContentDisplay p {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+    <!-- Nhúng CSS của Quill -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>Tạo Bài Viết Mới Với QuillJS</h1>
+        <form id="postForm">
+            <label for="postTitle">Tiêu đề bài viết:</label>
+            <input type="text" id="postTitle" name="postTitle" required>
+
+            <label>Nội dung bài viết:</label>
+            <!-- Đây là vùng chứa cho Quill editor -->
+            <div id="editor-container"></div>
+
+            <button type="submit">Đăng Bài</button>
+        </form>
+
+        <div id="postContentDisplay" style="display: none;">
+            <h2>Bài viết của bạn đã được đăng (hiển thị mô phỏng):</h2>
+            <h3 id="displayTitle"></h3>
+            <div id="displayContent"></div>
+        </div>
+    </div>
+
+    <!-- Nhúng thư viện Quill JS -->
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script>
+        // Khởi tạo Quill editor
+        var quill = new Quill('#editor-container', {
+            theme: 'snow', // Sử dụng theme "snow" cho giao diện thanh công cụ
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],        // định dạng chữ
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],    // danh sách
+                    [{ 'script': 'sub'}, { 'script': 'super' }],      // chỉ số trên/dưới
+                    [{ 'indent': '-1'}, { 'indent': '+1' }],          // thụt lề
+                    [{ 'direction': 'rtl' }],                         // hướng văn bản
+                    [{ 'color': [] }, { 'background': [] }],          // màu chữ, màu nền
+                    [{ 'font': [] }],                                 // font chữ
+                    [{ 'align': [] }],                                // căn chỉnh
+                    ['link', 'image', 'video'],                       // chèn link, ảnh, video
+                    ['clean']                                         // xóa định dạng
+                ]
+            }
+        });
+
+        // Xử lý sự kiện khi submit form
+        document.getElementById('postForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Ngăn chặn form gửi đi theo cách truyền thống
+
+            const title = document.getElementById('postTitle').value;
+            // Lấy nội dung từ Quill dưới dạng HTML
+            const content = quill.root.innerHTML; // Hoặc quill.getContents() để lấy Delta (JSON)
+
+            // Hiển thị nội dung đã đăng (mô phỏng)
+            const displayDiv = document.getElementById('postContentDisplay');
+            const displayTitle = document.getElementById('displayTitle');
+            const displayContent = document.getElementById('displayContent');
+
+            displayTitle.textContent = title;
+            displayContent.innerHTML = content; // Sử dụng innerHTML vì nội dung từ Quill là HTML
+
+            displayDiv.style.display = 'block'; // Hiển thị phần kết quả
+
+            console.log("Tiêu đề:", title);
+            console.log("Nội dung HTML:", content);
+
+            // Ghi chú về Tải ảnh lên:
+            // Quill có một hệ thống modules tùy chỉnh cho việc tải ảnh.
+            // Mặc định, khi bạn chèn ảnh, nó sẽ mở một hộp thoại để bạn dán URL.
+            // Nếu bạn kéo thả hoặc dán ảnh trực tiếp, Quill có thể chuyển nó thành Base64 (ảnh được nhúng trực tiếp vào HTML).
+            // Để triển khai tính năng tải ảnh lên server thực sự, bạn sẽ cần:
+            // 1. Tắt module 'image' mặc định của toolbar hoặc ghi đè hành vi của nó.
+            // 2. Viết một module JavaScript tùy chỉnh để bắt sự kiện chèn ảnh, gửi ảnh đến backend của bạn, và sau đó chèn URL ảnh trả về vào editor.
+            // Điều này phức tạp hơn một chút và yêu cầu kiến thức về backend.
+        });
+    </script>
+</body>
+</html>

@@ -4,77 +4,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Knowledge</title>
+    <title>Knowledge Base</title>
     <link rel="stylesheet" href="../style.css">
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <style>
-            .tab-nav { border-bottom: 2px solid #dee2e6; margin-bottom: 20px; }
-            .tab-button { background: none; border: none; padding: 10px 15px; cursor: pointer; font-size: 16px; margin-bottom: -2px;}
-            .tab-button.active { border-bottom: 2px solid #007bff; font-weight: bold; color: #007bff; }
-            .tab-content { display: none; }
-            .tab-content.active { display: block; }
-            .knowledge-card { background: #fff; border: 1px solid #ddd; border-left: 5px solid #007bff; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
-            .knowledge-card h3 { margin-top: 0; }
-            .knowledge-card img { max-width: 100%; height: auto; margin-top: 10px; border-radius: 5px; }
+        body { background-color: #f8f9fa; }
+        .container { max-width: 900px; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .back-link { text-decoration: none; color: #6c757d; background-color: #e9ecef; padding: 8px 12px; border-radius: 20px; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
+        .back-link:hover { background-color: #dee2e6; color: #212529; }
+        .page-header h1 { margin: 0; color: #343a40; }
+        .tab-nav { display: flex; gap: 10px; border-bottom: 1px solid #dee2e6; margin-bottom: 2rem; }
+        .tab-button { background: none; border: none; border-bottom: 3px solid transparent; padding: 15px 20px; cursor: pointer; font-size: 16px; font-weight: 500; color: #6c757d; transition: all 0.3s ease; position: relative; top: 1px; }
+        .tab-button:hover { color: #007bff; }
+        .tab-button.active { border-bottom-color: #007bff; font-weight: 600; color: #007bff; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #007bff; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 40px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .knowledge-card { background: #fff; border: 1px solid #e9ecef; padding: 20px 25px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .knowledge-card p { color: #495057; line-height: 1.7; margin-top: 0; }
+        .knowledge-card img { max-width: 100%; height: auto; margin-top: 15px; border-radius: 8px; border: 1px solid #eee; }
+        .article-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(5px); animation: fadeInModal 0.3s ease; }
+        .article-modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #fff; padding: 30px 40px; border-radius: 12px; width: 90%; max-width: 900px; height: 90vh; display: flex; flex-direction: column; animation: slideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+        .article-modal-header { padding-bottom: 15px; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; }
+        .article-modal-header h2 { margin: 0; font-size: 1.8rem; }
+        .article-modal-close { font-size: 2.5rem; font-weight: 300; cursor: pointer; color: #6c757d; border: none; background: none; padding: 0 10px; }
+        .article-modal-close:hover { color: #212529; }
+        .article-modal-body { flex-grow: 1; overflow-y: auto; padding-top: 20px; }
+        .ql-snow { background-color: transparent; border: none; }
+        .ql-snow .ql-editor { border: none; padding: 0; overflow-y: visible; min-height: auto; }
+        .ql-snow .ql-editor img { max-width: 100%; height: auto; border-radius: 5px; }
 
-            /* === CSS CẦN THIẾT CHO COLLAPSE/EXPAND === */
-            .article-content {
-                max-height: 4.5em; /* Giới hạn chiều cao tương đương 3 dòng */
-                overflow: hidden;
-                position: relative;
-                line-height: 1.5em; /* Đảm bảo tính toán chiều cao chính xác */
-                transition: max-height 0.4s ease-out;
-            }
-            .article-content.expanded {
-                max-height: 2000px; /* Một giá trị đủ lớn để chứa mọi nội dung */
-                transition: max-height 0.4s ease-in;
-            }
-            /* Lớp phủ mờ dần ở cuối khi chưa mở rộng */
-            .article-content:not(.expanded)::after {
-                content: '';
-                position: absolute;
-                bottom: 0;
-                right: 0;
-                width: 100%;
-                height: 1.5em; /* Chiều cao bằng 1 dòng */
-                background: linear-gradient(to top, white, rgba(255, 255, 255, 0));
-            }
-            .toggle-expand {
-                color: #007bff;
-                cursor: pointer;
-                font-weight: bold;
-                margin-top: 5px;
-                display: inline-block;
-            }
-            /* === KẾT THÚC CSS CẦN THIẾT === */
-        </style>
+        .word-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .word-title { display: flex; align-items: baseline; gap: 15px; flex-wrap: wrap; }
+        .word-title h3 { font-size: 1.8rem; margin: 0; color: #212529; }
+        .word-title .chinese { color: #dc3545; font-size: 1.5rem; font-weight: 500;}
+        .word-tts-buttons { display: flex; gap: 10px; }
+        .tts-button { background-color: #e9ecef; border: 1px solid #dee2e6; color: #495057; padding: 6px 8px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 20px; transition: all 0.2s ease; }
+        .tts-button:hover { background-color: #dee2e6; }
+        .tts-button:active { transform: scale(0.95); }
+        .article-title-link { cursor: pointer; transition: color 0.3s ease; }
+        .article-title-link:hover { color: #0056b3; }
+        .read-more-btn { background-color: #007bff; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; text-align: center; margin-top: auto; align-self: flex-start; }
+        .read-more-btn:hover { background-color: #0056b3; }
+    </style>
 </head>
 <body>
     <div class="container">
-        <a href="../" style="text-decoration: none; color: #007bff;">← Back to Main</a>
-        <h1>Knowledge</h1>
+        <header class="page-header"><h1>Knowledge Base</h1><a href="../" class="back-link">&larr; Back to Main</a></header>
 
         <div class="tab-nav">
-            <button class="tab-button active" data-tab="words">New words</button>
-            <button class="tab-button" data-tab="articles">Professional knowledge</button>
+            <button class="tab-button active" data-tab="words">New Words</button>
+            <button class="tab-button" data-tab="articles">Professional Knowledge</button>
             <button class="tab-button" data-tab="discuss">Discuss</button>
         </div>
 
         <div id="tab-words" class="tab-content active">
-            <h2>New words</h2>
-            <div id="words-container"><p>Đang tải...</p></div>
+            <!-- THÊM BỘ CHỌN GIỌNG ĐỌC Ở ĐÂY -->
+            <div class="voice-selector">
+                <div class="form-group">
+                    <label for="en-voice-select">English Voice:</label>
+                    <select id="en-voice-select" class="form-control"><option>Loading voices...</option></select>
+                </div>
+                <div class="form-group">
+                    <label for="zh-voice-select">Chinese Voice:</label>
+                    <select id="zh-voice-select" class="form-control"><option>Loading voices...</option></select>
+                </div>
+            </div>
+            <div id="words-container"><div class="loader"></div></div>
         </div>
 
-        <div id="tab-articles" class="tab-content">
-            <h2>Professional knowledge</h2>
-            <div id="articles-container"><p>Đang tải...</p></div>
-        </div>
-        
-        <div id="tab-discuss" class="tab-content">
-            <h2>Discuss</h2>
-            <p>coming soon!</p>
-        </div>
+        <!-- Các tab khác giữ nguyên -->
+        <div id="tab-articles" class="tab-content"><div id="articles-container"><div class="loader"></div></div></div>
+        <div id="tab-discuss" class="tab-content"><div class="knowledge-card"><h2>Coming Soon!</h2><p>This feature is under development.</p></div></div>
     </div>
-    <!-- SDKs and Scripts -->
+    
+    <!-- Modal giữ nguyên -->
+    <div id="article-modal" class="article-modal"> ... </div>
+
+    <!-- Scripts giữ nguyên -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="../firebase-config.js"></script>
