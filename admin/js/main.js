@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <nav class="admin-nav">
             <a href="dashboard.html" class="${currentPage === 'dashboard.html' ? 'active' : ''}">Tổng quan</a>
             <a href="knowledge.html" class="${currentPage === 'knowledge.html' ? 'active' : ''}">Quản lý Kiến thức</a>
+            <a href="discuss.html" class="${currentPage === 'discuss.html' ? 'active' : ''}">Quản lý Thảo luận</a>
             <a href="questions.html" class="${currentPage === 'questions.html' ? 'active' : ''}">Ngân hàng Câu hỏi</a>
             <a href="quiz-sets.html" class="${currentPage === 'quiz-sets.html' ? 'active' : ''}">Quản lý Bộ đề</a>
             <a href="results.html" class="${currentPage === 'results.html' ? 'active' : ''}">Xem Kết quả</a>
