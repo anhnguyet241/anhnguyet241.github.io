@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordExplanationInput = document.getElementById('word-explanation');
     const wordExampleInput = document.getElementById('word-example');
     const wordImageUrlInput = document.getElementById('word-imageUrl');
+    const wordCategoryInput = document.getElementById('word-category');
     const wordFormTitle = document.getElementById('word-form-title');
 
     const resetWordForm = () => {
@@ -39,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wordForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const wordData = {
+            category: wordCategoryInput.value || 'Từ mới',
             english_word: wordEnglishInput.value.trim(),
             chinese_word: wordChineseInput.value.trim(),
             vietnamese_meaning: wordVietnameseInput.value.trim(),
@@ -72,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = doc.data();
             const tr = document.createElement('tr');
             tr.innerHTML = `
+                <td><span style="background: #e9ecef; padding: 4px 8px; border-radius: 4px; font-size: 0.9em;">${data.category || 'Từ mới'}</span></td>
                 <td>${data.english_word}</td>
                 <td>${data.chinese_word}</td>
                 <td>${data.vietnamese_meaning}</td>
@@ -84,6 +87,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             tr.querySelector('.edit-word').addEventListener('click', () => {
                 wordIdInput.value = doc.id;
+                
+                // Cố gắng map lại giá trị danh mục cũ (Mặc định: 'Từ mới')
+                let catVal = data.category || 'Từ mới';
+                const validOptions = ['Loại thẻ', 'Từ mới', 'Quốc gia', 'Ngân hàng', 'Khác'];
+                if(!validOptions.includes(catVal)) catVal = 'Khác';
+                wordCategoryInput.value = catVal;
+                
                 wordEnglishInput.value = data.english_word || '';
                 wordChineseInput.value = data.chinese_word || '';
                 wordVietnameseInput.value = data.vietnamese_meaning || '';

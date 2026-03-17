@@ -98,44 +98,119 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Fetch and Display New Words ---
+    const categoriesGrid = document.getElementById('categories-grid');
+    const wordsListSection = document.getElementById('words-list-section');
+    const backToCategoriesBtn = document.getElementById('back-to-categories');
+
+    // Mảng cấu hình các Category mặc định (để hiển thị icon và màu sắc cho đẹp)
+    const categoryConfigs = {
+        'Loại thẻ': { icon: '💳', name: 'Loại thẻ' },
+        'Từ mới': { icon: '📝', name: 'Từ mới' },
+        'Quốc gia': { icon: '🌍', name: 'Quốc gia' },
+        'Ngân hàng': { icon: '🏦', name: 'Ngân hàng' },
+        'Khác': { icon: '📁', name: 'Khác' }
+    };
+
+    let allWordsData = []; // Lưu toàn bộ data để lọc sau
+
     db.collection('knowledge_words').orderBy('createdAt', 'desc').get()
         .then(snapshot => {
             if (snapshot.empty) {
-                wordsContainer.innerHTML = '<p>No new words have been added yet.</p>';
+                categoriesGrid.innerHTML = '<p>No new words have been added yet.</p>';
                 return;
             }
+            
+            // Xóa HTML cũ
+            categoriesGrid.innerHTML = '';
             wordsContainer.innerHTML = '';
+            allWordsData = [];
+
+            // Lưu data và đếm số lượng cho mỗi catalog
+            const categoryCounts = {};
+            
             snapshot.forEach(doc => {
                 const data = doc.data();
-                const card = document.createElement('div');
-                card.className = 'knowledge-card';
-                card.innerHTML = `
-                    <div class="word-card-header">
-                        <div class="word-title">
-                            <h3>${data.english_word}</h3> <button class="tts-button" data-lang="en-US">🔊</button>
-                            <span class="chinese">${data.chinese_word}</span> <button class="tts-button" data-lang="zh-CN">🔊</button>
-                        </div>
-                    </div>
-                    <h4><em>${data.vietnamese_meaning}</em></h4>
-                    <p><strong>Explanation:</strong> ${data.explanation || 'Not available.'}</p>
-                    <p><strong>Example:</strong> ${data.example || 'Not available.'}</p>
-                    ${data.imageUrl ? `<img width="200px" src="${data.imageUrl}" alt="${data.english_word}">` : ''}
-                `;
-                wordsContainer.appendChild(card);
+                allWordsData.push(data);
                 
-                card.querySelector('[data-lang="en-US"]').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    speak(data.english_word, 'en-US');
+                const cat = data.category || 'Từ mới'; // Mặc định là 'Từ mới' nếu rỗng
+                categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+            });
+
+            // Nếu không có data, thoát
+            if(allWordsData.length === 0) return;
+
+            // Render Categories Grid
+            Object.keys(categoryCounts).forEach(cat => {
+                const count = categoryCounts[cat];
+                const config = categoryConfigs[cat] || { icon: '📁', name: cat };
+                
+                const card = document.createElement('div');
+                card.className = 'category-card';
+                card.innerHTML = `
+                    <div class="category-icon">${config.icon}</div>
+                    <div class="category-name">${config.name}</div>
+                    <div class="category-count">Tổng cộng: ${count}</div>
+                `;
+
+                // Sự kiện khi bấm vào 1 Danh mục
+                card.addEventListener('click', () => {
+                    renderWordsByCategory(cat);
+                    categoriesGrid.style.display = 'none';
+                    wordsListSection.style.display = 'block';
                 });
-                card.querySelector('[data-lang="zh-CN"]').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    speak(data.chinese_word, 'zh-CN');
-                });
+
+                categoriesGrid.appendChild(card);
             });
         }).catch(err => {
             console.error("Error loading new words:", err);
-            wordsContainer.innerHTML = '<p>Error loading data. Please try again later.</p>';
+            categoriesGrid.innerHTML = '<p>Error loading data. Please try again later.</p>';
         });
+
+    // Hàm render các từ vựng dựa trên Categories
+    const renderWordsByCategory = (categoryName) => {
+        wordsContainer.innerHTML = '';
+        const filteredWords = allWordsData.filter(w => (w.category || 'Từ mới') === categoryName);
+        
+        if(filteredWords.length === 0) {
+            wordsContainer.innerHTML = '<p>Không có từ vựng nào trong mục này.</p>';
+            return;
+        }
+
+        filteredWords.forEach(data => {
+            const card = document.createElement('div');
+            card.className = 'knowledge-card';
+            card.innerHTML = `
+                <div class="word-card-header">
+                    <div class="word-title">
+                        <h3>${data.english_word}</h3> <button class="tts-button" data-lang="en-US">🔊</button>
+                        <span class="chinese">${data.chinese_word}</span> <button class="tts-button" data-lang="zh-CN">🔊</button>
+                    </div>
+                </div>
+                <h4><em>${data.vietnamese_meaning}</em></h4>
+                <p><strong>Explanation:</strong> ${data.explanation || 'Not available.'}</p>
+                <p><strong>Example:</strong> ${data.example || 'Not available.'}</p>
+                ${data.imageUrl ? `<img width="200px" src="${data.imageUrl}" alt="${data.english_word}">` : ''}
+            `;
+            wordsContainer.appendChild(card);
+            
+            card.querySelector('[data-lang="en-US"]').addEventListener('click', (e) => {
+                e.stopPropagation();
+                speak(data.english_word, 'en-US');
+            });
+            card.querySelector('[data-lang="zh-CN"]').addEventListener('click', (e) => {
+                e.stopPropagation();
+                speak(data.chinese_word, 'zh-CN');
+            });
+        });
+    };
+
+    // Nút "Quay lại" danh mục
+    if (backToCategoriesBtn) {
+        backToCategoriesBtn.addEventListener('click', () => {
+            wordsListSection.style.display = 'none';
+            categoriesGrid.style.display = 'grid'; // Thẻ của ta dùng Grid CSS
+        });
+    }
     
     // --- Fetch and Display Articles ---
      db.collection('knowledge_articles').orderBy('createdAt', 'desc').get()

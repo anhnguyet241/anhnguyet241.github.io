@@ -60,6 +60,64 @@
         .ql-snow .ql-editor { border: none; padding: 0; overflow-y: visible; min-height: auto; font-size: 16px; line-height: 1.7; }
         .ql-snow .ql-editor img { max-width: 100%; height: auto; border-radius: 5px; }
 
+        /* Category Grid Styles */
+        #categories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .category-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px 10px;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .category-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: #f8fbff;
+        }
+        .category-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        .category-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 15px;
+            margin-bottom: 5px;
+        }
+        .category-count {
+            font-size: 13px;
+            color: #666;
+        }
+
+        #back-to-categories {
+            display: inline-flex;
+            align-items: center;
+            background: none;
+            border: none;
+            color: #007bff;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 10px 0;
+            margin-bottom: 10px;
+            transition: color 0.2s;
+        }
+        #back-to-categories:hover {
+            color: #0056b3;
+            text-decoration: underline;
+        }
+
         /* Grid Layout cho Discuss */
         #discussions-container {
             display: grid;
@@ -104,7 +162,19 @@
                 <div class="form-group"><label for="en-voice-select">English Voice:</label><select id="en-voice-select" class="form-control"><option>Loading...</option></select></div>
                 <div class="form-group"><label for="zh-voice-select">Chinese Voice:</label><select id="zh-voice-select" class="form-control"><option>Loading...</option></select></div>
             </div>
-            <div id="words-container"><div class="loader"></div></div>
+
+            <!-- Category Grid Content -->
+            <div id="categories-grid">
+                <div class="loader"></div>
+            </div>
+
+            <!-- Words List Content (Hidden initially when categories show) -->
+            <div id="words-list-section" style="display: none;">
+                <button id="back-to-categories" style="display: none;">
+                    <span style="margin-right: 5px; font-size: 18px;">‹</span> Quay lại danh mục
+                </button>
+                <div id="words-container"><div class="loader"></div></div>
+            </div>
         </div>
 
         <div id="tab-articles" class="tab-content"><div id="articles-container"><div class="loader"></div></div></div>
