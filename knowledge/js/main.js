@@ -12,6 +12,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const articleModalBodyContent = document.getElementById('article-modal-body-content');
     const articleModalCloseBtn = document.getElementById('article-modal-close');
 
+    // --- DOM Elements cho Word Detail Modal ---
+    const wordDetailModal = document.getElementById('word-detail-modal');
+    const wordDetailTitle = document.getElementById('detail-modal-chinese');
+    const wordDetailPinyin = document.getElementById('detail-modal-pinyin');
+    const wordDetailImagesContainer = document.getElementById('detail-modal-images-container');
+    const wordDetailMeaning = document.getElementById('detail-modal-meaning');
+    const wordDetailExplanation = document.getElementById('detail-modal-explanation');
+    const wordDetailExample = document.getElementById('detail-modal-example');
+    let wordDetailTtsBtn = document.getElementById('detail-modal-tts');
+    const wordDetailCloseBtn = document.getElementById('word-detail-modal-close');
+
     // --- DOM Elements cho Text-to-Speech ---
     const enVoiceSelect = document.getElementById('en-voice-select');
     const zhVoiceSelect = document.getElementById('zh-voice-select');
@@ -54,6 +65,72 @@ document.addEventListener('DOMContentLoaded', () => {
             closeArticleModal();
         }
     });
+
+    // Modal Word Detail Logic
+    const closeWordDetailModal = () => {
+        wordDetailModal.classList.remove('visible');
+    };
+
+    wordDetailCloseBtn.addEventListener('click', closeWordDetailModal);
+    wordDetailModal.addEventListener('click', (e) => {
+        if (e.target === wordDetailModal) {
+            closeWordDetailModal();
+        }
+    });
+
+    const openWordDetailModal = (data) => {
+        wordDetailTitle.textContent = data.chinese_word;
+        // Pinyin / English
+        wordDetailPinyin.textContent = data.english_word ? data.english_word : '';
+        
+        wordDetailImagesContainer.innerHTML = ''; // Xóa ảnh cũ
+        
+        // Chuẩn bị mảng ảnh
+        let imagesToRender = [];
+        if (data.imageUrls && Array.isArray(data.imageUrls) && data.imageUrls.length > 0) {
+            imagesToRender = data.imageUrls;
+        } else if (data.imageUrl) {
+            imagesToRender = [data.imageUrl];
+        }
+
+        if (imagesToRender.length > 0) {
+            imagesToRender.forEach(src => {
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = "Word Image";
+                img.style.maxWidth = '100%';
+                img.style.maxHeight = '250px';
+                img.style.borderRadius = '12px';
+                img.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                // Nếu có nhiều ảnh, giới hạn width tương đối để xếp ngang đẹp hơn
+                if(imagesToRender.length > 1) {
+                    img.style.maxWidth = 'calc(50% - 10px)'; // 2 ảnh trên 1 dòng
+                }
+                wordDetailImagesContainer.appendChild(img);
+            });
+            wordDetailImagesContainer.style.display = 'flex';
+        } else {
+            wordDetailImagesContainer.style.display = 'none';
+        }
+
+        wordDetailMeaning.textContent = data.vietnamese_meaning;
+        wordDetailExplanation.textContent = data.explanation || 'Chưa có thông tin giải thích.';
+        wordDetailExample.textContent = data.example || 'Chưa có ví dụ cụ thể.';
+        
+        // Remove old event listener for TTS to avoid duplicate binds
+        const newTtsBtn = wordDetailTtsBtn.cloneNode(true);
+        wordDetailTtsBtn.parentNode.replaceChild(newTtsBtn, wordDetailTtsBtn);
+        wordDetailTtsBtn = newTtsBtn; // Cập nhật lại biến global
+        
+        wordDetailTtsBtn.addEventListener('click', () => {
+            speak(data.chinese_word, 'zh-CN');
+            if(data.english_word) {
+                setTimeout(() => speak(data.english_word, 'en-US'), 1000);
+            }
+        });
+
+        wordDetailModal.classList.add('visible');
+    };
 
     // --- TEXT-TO-SPEECH LOGIC ---
     let voices = [];
@@ -108,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'Từ mới': { icon: '📝', name: 'Từ mới' },
         'Quốc gia': { icon: '🌍', name: 'Quốc gia' },
         'Ngân hàng': { icon: '🏦', name: 'Ngân hàng' },
+        'app pending': { icon: '📱', name: 'app pending' },
         'Khác': { icon: '📁', name: 'Khác' }
     };
 
@@ -139,7 +217,23 @@ document.addEventListener('DOMContentLoaded', () => {
             // Nếu không có data, thoát
             if(allWordsData.length === 0) return;
 
-            // Render Categories Grid
+            // Render "All" Category First
+            const totalWordsCount = allWordsData.length;
+            const allCard = document.createElement('div');
+            allCard.className = 'category-card';
+            allCard.innerHTML = `
+                <div class="category-icon">📚</div>
+                <div class="category-name">Tất cả từ mới</div>
+                <div class="category-count">Tổng cộng: ${totalWordsCount}</div>
+            `;
+            allCard.addEventListener('click', () => {
+                renderWordsByCategory('All');
+                categoriesGrid.style.display = 'none';
+                wordsListSection.style.display = 'block';
+            });
+            categoriesGrid.appendChild(allCard);
+
+            // Render Categories Grid (Dynamic based on data)
             Object.keys(categoryCounts).forEach(cat => {
                 const count = categoryCounts[cat];
                 const config = categoryConfigs[cat] || { icon: '📁', name: cat };
@@ -169,7 +263,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hàm render các từ vựng dựa trên Categories
     const renderWordsByCategory = (categoryName) => {
         wordsContainer.innerHTML = '';
-        const filteredWords = allWordsData.filter(w => (w.category || 'Từ mới') === categoryName);
+        
+        let filteredWords = [];
+        if (categoryName === 'All') {
+            filteredWords = allWordsData;
+        } else {
+            filteredWords = allWordsData.filter(w => (w.category || 'Từ mới') === categoryName);
+        }
         
         if(filteredWords.length === 0) {
             wordsContainer.innerHTML = '<p>Không có từ vựng nào trong mục này.</p>';
@@ -178,29 +278,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         filteredWords.forEach(data => {
             const card = document.createElement('div');
-            card.className = 'knowledge-card';
-            card.innerHTML = `
-                <div class="word-card-header">
-                    <div class="word-title">
-                        <h3>${data.english_word}</h3> <button class="tts-button" data-lang="en-US">🔊</button>
-                        <span class="chinese">${data.chinese_word}</span> <button class="tts-button" data-lang="zh-CN">🔊</button>
-                    </div>
-                </div>
-                <h4><em>${data.vietnamese_meaning}</em></h4>
-                <p><strong>Explanation:</strong> ${data.explanation || 'Not available.'}</p>
-                <p><strong>Example:</strong> ${data.example || 'Not available.'}</p>
-                ${data.imageUrl ? `<img width="200px" src="${data.imageUrl}" alt="${data.english_word}">` : ''}
-            `;
-            wordsContainer.appendChild(card);
+            card.className = 'word-flashcard';
             
-            card.querySelector('[data-lang="en-US"]').addEventListener('click', (e) => {
-                e.stopPropagation();
-                speak(data.english_word, 'en-US');
+            // Render Image with fallback
+            let imgHTML = '';
+            if (data.imageUrl) {
+                imgHTML = `<div class="flashcard-img-container"><img src="${data.imageUrl}" alt="${data.chinese_word}"></div>`;
+            } else {
+                imgHTML = `<div class="flashcard-img-container" style="background:#f0f0f0;"><span style="font-size:24px; color:#aaa;">📝</span></div>`;
+            }
+
+            card.innerHTML = `
+                ${imgHTML}
+                <div class="flashcard-content">
+                    <h3 class="flashcard-chinese">${data.chinese_word}</h3>
+                    <p class="flashcard-pinyin">${data.english_word || ''}</p>
+                    <p class="flashcard-meaning">${data.vietnamese_meaning}</p>
+                </div>
+                <button class="flashcard-tts-btn" title="Nghe phát âm">🔊</button>
+            `;
+            
+            // Xử lý sự kiện Click xem chi tiết
+            card.addEventListener('click', () => {
+                openWordDetailModal(data);
             });
-            card.querySelector('[data-lang="zh-CN"]').addEventListener('click', (e) => {
+            
+            // Xử lý sự kiện Click Loa (Ngăn nổi bọt để không mở Modal)
+            const ttsBtn = card.querySelector('.flashcard-tts-btn');
+            ttsBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 speak(data.chinese_word, 'zh-CN');
+                if(data.english_word) {
+                    setTimeout(() => speak(data.english_word, 'en-US'), 1000);
+                }
             });
+
+            wordsContainer.appendChild(card);
         });
     };
 

@@ -24,15 +24,145 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordVietnameseInput = document.getElementById('word-vietnamese');
     const wordExplanationInput = document.getElementById('word-explanation');
     const wordExampleInput = document.getElementById('word-example');
-    const wordImageUrlInput = document.getElementById('word-imageUrl');
     const wordCategoryInput = document.getElementById('word-category');
     const wordFormTitle = document.getElementById('word-form-title');
+
+    // --- Image Upload & Paste Elements ---
+    const wordImageUploadArea = document.getElementById('word-image-upload-area');
+    const wordImageFile = document.getElementById('word-image-file');
+    const wordImagePreviewContainer = document.getElementById('word-image-preview-container');
+    
+    let currentWordImagesBase64 = [];
+
+    const renderImagePreviews = () => {
+        wordImagePreviewContainer.innerHTML = '';
+        if (currentWordImagesBase64.length === 0) {
+            wordImagePreviewContainer.style.display = 'none';
+            wordImageUploadArea.style.display = 'block';
+            return;
+        }
+
+        wordImagePreviewContainer.style.display = 'flex';
+        // Ẩn dropzone nếu đã đủ 3 ảnh
+        if (currentWordImagesBase64.length >= 3) {
+            wordImageUploadArea.style.display = 'none';
+        } else {
+            wordImageUploadArea.style.display = 'block';
+        }
+
+        currentWordImagesBase64.forEach((base64Str, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.style.position = 'relative';
+            wrapper.style.border = '1px solid #ddd';
+            wrapper.style.borderRadius = '8px';
+            wrapper.style.padding = '5px';
+            wrapper.style.background = 'white';
+
+            const img = document.createElement('img');
+            img.src = base64Str;
+            img.style.maxHeight = '150px';
+            img.style.borderRadius = '4px';
+            img.style.display = 'block';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.style.cssText = 'position: absolute; top: -10px; right: -10px; background: #dc3545; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+            
+            removeBtn.onclick = () => {
+                currentWordImagesBase64.splice(index, 1);
+                renderImagePreviews();
+                wordImageFile.value = ''; // Reset input to allow re-uploading the same file
+            };
+
+            wrapper.appendChild(img);
+            wrapper.appendChild(removeBtn);
+            wordImagePreviewContainer.appendChild(wrapper);
+        });
+    };
+
+    // --- Image Processing Logic ---
+    const processImageFile = (file) => {
+        if (!file || !file.type.startsWith('image/')) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_WIDTH = 800; // Tiêu chuẩn 800px
+
+                if (width > MAX_WIDTH) {
+                    height = Math.round((height * MAX_WIDTH) / width);
+                    width = MAX_WIDTH;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Nén thành JPEG mức 0.7
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                if (currentWordImagesBase64.length < 3) {
+                    currentWordImagesBase64.push(compressedBase64);
+                    renderImagePreviews();
+                } else {
+                    alert('Chỉ được phép tải lên tối đa 3 ảnh minh họa!');
+                }
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Events for Upload Area
+    wordImageUploadArea.addEventListener('click', () => {
+        wordImageFile.click();
+    });
+
+    wordImageFile.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            processImageFile(e.target.files[0]);
+        }
+    });
+
+    // Event for Paste (dán ảnh)
+    document.addEventListener('paste', (e) => {
+        // Chỉ xử lý paste ảnh nếu người dùng không đang gõ vào các ô text khác
+        const activeTag = document.activeElement.tagName.toLowerCase();
+        if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+            // Ngoại trừ trường hợp focus trực tiếp vào div upload area
+            if (document.activeElement.id !== 'word-image-upload-area') {
+                return; 
+            }
+        }
+        
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                processImageFile(file);
+                e.preventDefault();
+                break;
+            }
+        }
+    });
+    
+    // Khả năng focus vào thẻ div để paste
+    wordImageUploadArea.setAttribute('tabindex', '0'); 
 
     const resetWordForm = () => {
         wordForm.reset();
         wordIdInput.value = '';
         wordFormTitle.textContent = 'Thêm Từ mới';
         wordCancelBtn.style.display = 'none';
+        
+        // Reset Image Preview
+        currentWordImagesBase64 = [];
+        renderImagePreviews();
     };
 
     wordCancelBtn.addEventListener('click', resetWordForm);
@@ -46,7 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
             vietnamese_meaning: wordVietnameseInput.value.trim(),
             explanation: wordExplanationInput.value.trim(),
             example: wordExampleInput.value.trim(),
-            imageUrl: wordImageUrlInput.value.trim()
+            imageUrl: currentWordImagesBase64.length > 0 ? currentWordImagesBase64[0] : '', // Fallback cho code cũ
+            imageUrls: currentWordImagesBase64 // Mảng tối đa 3 ảnh
         };
 
         if (!wordData.english_word || !wordData.chinese_word || !wordData.vietnamese_meaning) {
@@ -73,8 +204,23 @@ document.addEventListener('DOMContentLoaded', () => {
         snapshot.forEach(doc => {
             const data = doc.data();
             const tr = document.createElement('tr');
+            const catVal = data.category || 'Từ mới';
+            const firstImg = (data.imageUrls && data.imageUrls.length > 0) ? data.imageUrls[0] : data.imageUrl;
+            
             tr.innerHTML = `
-                <td><span style="background: #e9ecef; padding: 4px 8px; border-radius: 4px; font-size: 0.9em;">${data.category || 'Từ mới'}</span></td>
+                <td>
+                    ${firstImg ? `<img src="${firstImg}" alt="${data.chinese_word}" style="max-height: 40px; border-radius: 4px; object-fit: cover;">` : '<span style="color:#aaa; font-size:12px;">Không có</span>'}
+                </td>
+                <td>
+                    <select class="form-control category-quick-edit" style="padding: 4px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.9em; min-width: 100px;">
+                        <option value="Loại thẻ" ${catVal === 'Loại thẻ' ? 'selected' : ''}>Loại thẻ</option>
+                        <option value="Từ mới" ${catVal === 'Từ mới' ? 'selected' : ''}>Từ mới</option>
+                        <option value="Quốc gia" ${catVal === 'Quốc gia' ? 'selected' : ''}>Quốc gia</option>
+                        <option value="Ngân hàng" ${catVal === 'Ngân hàng' ? 'selected' : ''}>Ngân hàng</option>
+                        <option value="app pending" ${catVal === 'app pending' ? 'selected' : ''}>app pending</option>
+                        <option value="Khác" ${catVal === 'Khác' ? 'selected' : ''}>Khác</option>
+                    </select>
+                </td>
                 <td>${data.english_word}</td>
                 <td>${data.chinese_word}</td>
                 <td>${data.vietnamese_meaning}</td>
@@ -85,12 +231,28 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             wordsList.appendChild(tr);
 
+            tr.querySelector('.category-quick-edit').addEventListener('change', async (e) => {
+                const newCat = e.target.value;
+                try {
+                    await db.collection('knowledge_words').doc(doc.id).update({ category: newCat });
+                    e.target.style.borderColor = '#28a745';
+                    e.target.style.backgroundColor = '#d4edda';
+                    setTimeout(() => {
+                        e.target.style.borderColor = '#ccc';
+                        e.target.style.backgroundColor = 'white';
+                    }, 1000);
+                } catch (err) {
+                    console.error("Error Quick-updating category: ", err);
+                    alert('Lỗi cập nhật danh mục!');
+                }
+            });
+
             tr.querySelector('.edit-word').addEventListener('click', () => {
                 wordIdInput.value = doc.id;
                 
                 // Cố gắng map lại giá trị danh mục cũ (Mặc định: 'Từ mới')
                 let catVal = data.category || 'Từ mới';
-                const validOptions = ['Loại thẻ', 'Từ mới', 'Quốc gia', 'Ngân hàng', 'Khác'];
+                const validOptions = ['Loại thẻ', 'Từ mới', 'Quốc gia', 'Ngân hàng', 'app pending', 'Khác'];
                 if(!validOptions.includes(catVal)) catVal = 'Khác';
                 wordCategoryInput.value = catVal;
                 
@@ -99,7 +261,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 wordVietnameseInput.value = data.vietnamese_meaning || '';
                 wordExplanationInput.value = data.explanation || '';
                 wordExampleInput.value = data.example || '';
-                wordImageUrlInput.value = data.imageUrl || '';
+                
+                // Hydrate Image Preview
+                currentWordImagesBase64 = [];
+                if (data.imageUrls && Array.isArray(data.imageUrls) && data.imageUrls.length > 0) {
+                    currentWordImagesBase64 = [...data.imageUrls];
+                } else if (data.imageUrl) {
+                    currentWordImagesBase64 = [data.imageUrl];
+                }
+                renderImagePreviews();
+
                 wordFormTitle.textContent = 'Sửa Từ mới';
                 wordCancelBtn.style.display = 'inline-block';
                 window.scrollTo(0, 0);

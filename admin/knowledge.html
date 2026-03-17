@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Quản lý Kiến thức</title>
+    <script src="js/auth.js"></script>
     <link rel="stylesheet" href="../style.css">
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <style>
@@ -38,6 +39,7 @@
                         <option value="Từ mới">📝 Từ mới</option>
                         <option value="Quốc gia">🌍 Quốc gia</option>
                         <option value="Ngân hàng">🏦 Ngân hàng</option>
+                        <option value="app pending">📱 app pending</option>
                         <option value="Khác">📁 Khác</option>
                     </select>
                 </div>
@@ -62,15 +64,22 @@
                     <textarea id="word-example" class="form-control"></textarea>
                 </div>
                 <div class="form-group">
-                    <label for="word-imageUrl">Link ảnh minh họa (tùy chọn):</label>
-                    <input type="url" id="word-imageUrl" class="form-control">
+                    <label>Ảnh minh họa (Tải lên hoặc Dán ảnh vào đây):</label>
+                    <div id="word-image-upload-area" style="border: 2px dashed #007bff; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; background: #f8f9fa; transition: background 0.2s;">
+                        <span style="color: #6c757d; pointer-events: none;">📎 Click để chọn ảnh hoặc Nhấn Ctrl+V / Cmd+V để dán ảnh</span>
+                    </div>
+                    <input type="file" id="word-image-file" accept="image/*" style="display: none;">
+                    
+                    <div id="word-image-preview-container" style="display: none; margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px;">
+                        <!-- Thẻ các ảnh preview sẽ được render bằng JS vào đây -->
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-success">Lưu Từ mới</button>
                 <button type="button" id="word-cancel-btn" class="btn btn-secondary" style="display: none;">Hủy</button>
             </form>
             <h3>Danh sách Từ mới</h3>
             <table class="styled-table">
-                <thead><tr><th>Danh mục</th><th>Tiếng Anh</th><th>Tiếng Trung</th><th>Nghĩa Tiếng Việt</th><th>Hành động</th></tr></thead>
+                <thead><tr><th>Ảnh</th><th>Danh mục</th><th>Tiếng Anh</th><th>Tiếng Trung</th><th>Nghĩa Tiếng Việt</th><th>Hành động</th></tr></thead>
                 <tbody id="words-list"></tbody>
             </table>
         </div>

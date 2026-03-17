@@ -1,6 +1,7 @@
 <!-- /user/index.html -->
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -29,12 +30,13 @@
             overflow: hidden;
             min-height: 160px;
         }
+
         .quiz-set-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.05);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.05);
             border-color: #e0e4e8;
         }
-        
+
         /* Card Watermark & Decor */
         .quiz-card-watermark {
             position: absolute;
@@ -42,18 +44,19 @@
             right: 15px;
             font-size: 40px;
             font-weight: 900;
-            color: rgba(0,0,0,0.03);
+            color: rgba(0, 0, 0, 0.03);
             pointer-events: none;
             z-index: 0;
             user-select: none;
         }
-        
+
         /* Card Content */
         .quiz-card-content {
             position: relative;
             z-index: 1;
             flex-grow: 1;
         }
+
         .quiz-card-title {
             font-size: 18px;
             font-weight: 700;
@@ -63,6 +66,7 @@
             align-items: center;
             gap: 8px;
         }
+
         .quiz-card-info-item {
             font-size: 14px;
             color: #666;
@@ -74,7 +78,8 @@
         .quiz-start-btn {
             align-self: flex-end;
             margin-top: auto;
-            background-color: #2c3e50; /* Xanh đen */
+            background-color: #2c3e50;
+            /* Xanh đen */
             color: white;
             border: none;
             padding: 8px 24px;
@@ -86,24 +91,28 @@
             position: relative;
             z-index: 2;
         }
+
         .quiz-start-btn:hover {
             background-color: #1a252f;
         }
+
         .quiz-start-btn:active {
             transform: scale(0.95);
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-            <a href="../" style="text-decoration: none; color: #007bff;">← Back to Main</a>
+        <a href="../" style="text-decoration: none; color: #007bff;">← Back to Main</a>
 
         <!-- Màn hình 1: Nhập tên và Chọn bộ đề -->
         <div id="start-screen">
             <h1>Welcome to practice test</h1>
             <div class="form-group" style="max-width: 400px; margin-bottom: 30px;">
                 <label for="user-name" style="font-weight: 600; color: #333;">Enter your name pls:</label>
-                <input type="text" id="user-name" class="form-control" placeholder="Ví dụ: nguyet" style="border-radius: 8px; border: 1px solid #ccc; padding: 10px;">
+                <input type="text" id="user-name" class="form-control" placeholder="Ví dụ: nguyet"
+                    style="border-radius: 8px; border: 1px solid #ccc; padding: 10px;">
             </div>
             <div class="form-group">
                 <label style="font-weight: bold; font-size: 18px;">Select your test:</label>
@@ -126,7 +135,7 @@
 
         <!-- Màn hình 3: Kết quả -->
         <div id="result-screen" style="display:none;">
-             <!-- Nội dung màn hình kết quả giữ nguyên như cũ -->
+            <!-- Nội dung màn hình kết quả giữ nguyên như cũ -->
         </div>
     </div>
 
@@ -134,6 +143,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="../firebase-config.js"></script>
-    <script src="js/user.js"></script>
+    <script src="js/user.js?v=2"></script>
 </body>
+
 </html>
