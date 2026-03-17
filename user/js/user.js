@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultScreen = document.getElementById('result-screen');
     const userNameInput = document.getElementById('user-name');
     const quizSetListContainer = document.getElementById('quiz-set-list');
-    const startBtn = document.getElementById('start-btn');
     const welcomeUser = document.getElementById('welcome-user');
     const quizSetTitle = document.getElementById('quiz-set-title');
     const timerSpan = document.getElementById('timer');
@@ -202,17 +201,38 @@ document.addEventListener('DOMContentLoaded', () => {
             quizSetListContainer.innerHTML = '<p>Hiện chưa có bộ đề nào để làm.</p>';
             return;
         }
-        sets.forEach(set => {
+        sets.forEach((set, index) => {
             const card = document.createElement('div');
             card.className = 'quiz-set-card';
-            card.dataset.setId = set.id;
-            card.innerHTML = `<h4>${set.name} (${set.questionIds.length} câu)</h4><p>${set.description || 'Không có mô tả'}</p>`;
-            card.addEventListener('click', () => {
-                document.querySelectorAll('.quiz-set-card').forEach(c => c.classList.remove('selected'));
-                card.classList.add('selected');
+            
+            // Trang trí thêm icon mờ đằng sau
+            const isVip = index % 3 === 2; // Giả lập icon VIP
+            const isLocked = index % 5 === 4; // Giả lập trạng thái bị khoá cho phong phú UI
+
+            card.innerHTML = `
+                <div class="quiz-card-watermark">HSK</div>
+                <div class="quiz-card-content">
+                    <div class="quiz-card-title">
+                        ${set.name} ${isVip ? '👑' : ''}
+                    </div>
+                    <div class="quiz-card-info-item">${set.questionIds.length} câu</div>
+                    <div class="quiz-card-info-item">${set.questionIds.length * 2} phút</div>
+                    <div class="quiz-card-info-item" style="margin-bottom: 15px;">Nghe, Đọc, Viết</div>
+                </div>
+                <button class="quiz-start-btn" data-set-id="${set.id}">
+                    Bắt đầu ${isLocked ? '🔒' : ''}
+                </button>
+            `;
+            
+            const btnStart = card.querySelector('.quiz-start-btn');
+            btnStart.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if(isLocked) { alert('Bài thi này đang bị khoá!'); return;}
+                
                 selectedQuizSet = set;
-                startBtn.disabled = false;
+                startQuiz(); // Bắt đầu thi ngay sau khi gán set
             });
+
             quizSetListContainer.appendChild(card);
         });
     };
@@ -251,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    startBtn.addEventListener('click', startQuiz);
     quizForm.addEventListener('submit', submitQuiz);
     
     const initializeUserApp = () => {
