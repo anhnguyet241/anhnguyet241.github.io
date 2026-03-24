@@ -1,6 +1,7 @@
 <!-- /admin/knowledge.html -->
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,19 +10,46 @@
     <link rel="stylesheet" href="../style.css">
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <style>
-        .tab-nav { border-bottom: 2px solid #dee2e6; margin-bottom: 20px; }
-        .tab-button { background: none; border: none; padding: 10px 15px; cursor: pointer; font-size: 16px; margin-bottom: -2px;}
-        .tab-button.active { border-bottom: 2px solid #007bff; font-weight: bold; color: #007bff; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        #quill-editor { height: 250px; margin-bottom: 50px; }
+        .tab-nav {
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: -2px;
+        }
+
+        .tab-button.active {
+            border-bottom: 2px solid #007bff;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        #quill-editor {
+            height: 250px;
+            margin-bottom: 50px;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Quản lý Kiến thức</h1>
         <div id="admin-nav-container"></div>
-        
+
         <div class="tab-nav">
             <button class="tab-button active" data-tab="words">Từ mới</button>
             <button class="tab-button" data-tab="articles">Kiến thức chuyên môn</button>
@@ -29,12 +57,14 @@
 
         <!-- Tab Content for New Words -->
         <div id="tab-words" class="tab-content active">
-            <form id="word-form" novalidate style="border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+            <form id="word-form" novalidate
+                style="border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
                 <h3 id="word-form-title">Thêm Từ mới</h3>
                 <input type="hidden" id="word-id">
                 <div class="form-group">
                     <label for="word-category">Danh mục:</label>
-                    <select id="word-category" class="form-control" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    <select id="word-category" class="form-control" required
+                        style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
                         <option value="Loại thẻ">💳 Loại thẻ</option>
                         <option value="Từ mới">📝 Từ mới</option>
                         <option value="Quốc gia">🌍 Quốc gia</option>
@@ -56,21 +86,24 @@
                     <input type="text" id="word-vietnamese" class="form-control" placeholder="Ví dụ: Rút tiền">
                 </div>
                 <div class="form-group">
-                    <label for="word-explanation">Giải thích:</label>
-                    <textarea id="word-explanation" class="form-control"></textarea>
+                    <label for="word-explanation-editor">Giải thích:</label>
+                    <div id="word-explanation-editor" style="height: 150px; background: white; border-radius: 4px;"></div>
                 </div>
-                <div class="form-group">
-                    <label for="word-example">Ví dụ (câu tiếng Anh):</label>
-                    <textarea id="word-example" class="form-control"></textarea>
+                <div class="form-group" style="margin-top: 50px;">
+                    <label for="word-example-editor">Ví dụ (câu tiếng Anh/Trung):</label>
+                    <div id="word-example-editor" style="height: 150px; background: white; border-radius: 4px;"></div>
                 </div>
                 <div class="form-group">
                     <label>Ảnh minh họa (Tải lên hoặc Dán ảnh vào đây):</label>
-                    <div id="word-image-upload-area" style="border: 2px dashed #007bff; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; background: #f8f9fa; transition: background 0.2s;">
-                        <span style="color: #6c757d; pointer-events: none;">📎 Click để chọn ảnh hoặc Nhấn Ctrl+V / Cmd+V để dán ảnh</span>
+                    <div id="word-image-upload-area"
+                        style="border: 2px dashed #007bff; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; background: #f8f9fa; transition: background 0.2s;">
+                        <span style="color: #6c757d; pointer-events: none;">📎 Click để chọn ảnh hoặc Nhấn Ctrl+V /
+                            Cmd+V để dán ảnh</span>
                     </div>
                     <input type="file" id="word-image-file" accept="image/*" style="display: none;">
-                    
-                    <div id="word-image-preview-container" style="display: none; margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px;">
+
+                    <div id="word-image-preview-container"
+                        style="display: none; margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px;">
                         <!-- Thẻ các ảnh preview sẽ được render bằng JS vào đây -->
                     </div>
                 </div>
@@ -79,14 +112,24 @@
             </form>
             <h3>Danh sách Từ mới</h3>
             <table class="styled-table">
-                <thead><tr><th>Ảnh</th><th>Danh mục</th><th>Tiếng Anh</th><th>Tiếng Trung</th><th>Nghĩa Tiếng Việt</th><th>Hành động</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Ảnh</th>
+                        <th>Danh mục</th>
+                        <th>Tiếng Anh</th>
+                        <th>Tiếng Trung</th>
+                        <th>Nghĩa Tiếng Việt</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
                 <tbody id="words-list"></tbody>
             </table>
         </div>
 
         <!-- Tab Content for Articles -->
         <div id="tab-articles" class="tab-content">
-             <form id="article-form" novalidate style="border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+            <form id="article-form" novalidate
+                style="border: 1px solid #ccc; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
                 <h3 id="article-form-title">Thêm Bài viết</h3>
                 <input type="hidden" id="article-id">
                 <div class="form-group">
@@ -98,16 +141,22 @@
                     <div id="quill-editor"></div>
                 </div>
                 <button type="submit" class="btn btn-success">Lưu Bài viết</button>
-                <button type="button" id="article-cancel-btn" class="btn btn-secondary" style="display: none;">Hủy</button>
+                <button type="button" id="article-cancel-btn" class="btn btn-secondary"
+                    style="display: none;">Hủy</button>
             </form>
             <h3>Danh sách Bài viết</h3>
             <table class="styled-table">
-                <thead><tr><th>Tiêu đề</th><th>Hành động</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Tiêu đề</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
                 <tbody id="articles-list"></tbody>
             </table>
         </div>
     </div>
-    
+
     <!-- Scripts -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
@@ -116,4 +165,5 @@
     <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
     <script src="js/knowledge.js"></script>
 </body>
+
 </html>

@@ -114,8 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         wordDetailMeaning.textContent = data.vietnamese_meaning;
-        wordDetailExplanation.textContent = data.explanation || 'Chưa có thông tin giải thích.';
-        wordDetailExample.textContent = data.example || 'Chưa có ví dụ cụ thể.';
+        wordDetailExplanation.innerHTML = data.explanation || 'Chưa có thông tin giải thích.';
+        wordDetailExample.innerHTML = data.example || 'Chưa có ví dụ cụ thể.';
         
         // Remove old event listener for TTS to avoid duplicate binds
         const newTtsBtn = wordDetailTtsBtn.cloneNode(true);

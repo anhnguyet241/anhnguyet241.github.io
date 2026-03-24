@@ -22,12 +22,75 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordEnglishInput = document.getElementById('word-english');
     const wordChineseInput = document.getElementById('word-chinese');
     const wordVietnameseInput = document.getElementById('word-vietnamese');
-    const wordExplanationInput = document.getElementById('word-explanation');
-    const wordExampleInput = document.getElementById('word-example');
     const wordCategoryInput = document.getElementById('word-category');
     const wordFormTitle = document.getElementById('word-form-title');
 
-    // --- Image Upload & Paste Elements ---
+    // --- Quill Editors & Custom Image Handler ---
+    const quillImageHandler = function() {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+
+        input.onchange = () => {
+            const file = input.files[0];
+            if (/^image\//.test(file.type)) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const max_size = 800; 
+
+                        if (width > height) {
+                            if (width > max_size) {
+                                height *= max_size / width;
+                                width = max_size;
+                            }
+                        } else {
+                            if (height > max_size) {
+                                width *= max_size / height;
+                                height = max_size;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                        
+                        const range = this.quill.getSelection(true);
+                        this.quill.insertEmbed(range.index, 'image', compressedBase64);
+                        this.quill.setSelection(range.index + 1);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+    };
+
+    const quillConfig = {
+        theme: 'snow',
+        modules: {
+            toolbar: {
+                container: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['image', 'clean']
+                ],
+                handlers: { image: quillImageHandler }
+            }
+        }
+    };
+
+    const quillExplanation = new Quill('#word-explanation-editor', { ...quillConfig, placeholder: 'Nhập nội dung giải thích...' });
+    const quillExample = new Quill('#word-example-editor', { ...quillConfig, placeholder: 'Nhập ví dụ minh họa...' });
+
+    // --- Image Upload & Paste Elements (Main Flashcard Thumbnails) ---
     const wordImageUploadArea = document.getElementById('word-image-upload-area');
     const wordImageFile = document.getElementById('word-image-file');
     const wordImagePreviewContainer = document.getElementById('word-image-preview-container');
@@ -160,6 +223,9 @@ document.addEventListener('DOMContentLoaded', () => {
         wordFormTitle.textContent = 'Thêm Từ mới';
         wordCancelBtn.style.display = 'none';
         
+        quillExplanation.root.innerHTML = '';
+        quillExample.root.innerHTML = '';
+
         // Reset Image Preview
         currentWordImagesBase64 = [];
         renderImagePreviews();
@@ -174,8 +240,8 @@ document.addEventListener('DOMContentLoaded', () => {
             english_word: wordEnglishInput.value.trim(),
             chinese_word: wordChineseInput.value.trim(),
             vietnamese_meaning: wordVietnameseInput.value.trim(),
-            explanation: wordExplanationInput.value.trim(),
-            example: wordExampleInput.value.trim(),
+            explanation: quillExplanation.root.innerHTML === '<p><br></p>' ? '' : quillExplanation.root.innerHTML,
+            example: quillExample.root.innerHTML === '<p><br></p>' ? '' : quillExample.root.innerHTML,
             imageUrl: currentWordImagesBase64.length > 0 ? currentWordImagesBase64[0] : '', // Fallback cho code cũ
             imageUrls: currentWordImagesBase64 // Mảng tối đa 3 ảnh
         };
@@ -259,8 +325,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 wordEnglishInput.value = data.english_word || '';
                 wordChineseInput.value = data.chinese_word || '';
                 wordVietnameseInput.value = data.vietnamese_meaning || '';
-                wordExplanationInput.value = data.explanation || '';
-                wordExampleInput.value = data.example || '';
+                quillExplanation.root.innerHTML = data.explanation || '';
+                quillExample.root.innerHTML = data.example || '';
                 
                 // Hydrate Image Preview
                 currentWordImagesBase64 = [];
