@@ -1,0 +1,305 @@
+<!-- /admin/analytics.html -->
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Quản Lý Dữ Liệu Giao Dịch</title>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f0f4f8;
+            color: #1a1f36;
+            min-height: 100vh;
+        }
+        .admin-analytics {
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        .admin-analytics h1 {
+            font-size: 26px;
+            font-weight: 800;
+            color: #0b1437;
+            margin-bottom: 8px;
+        }
+        .admin-analytics .subtitle {
+            color: #6e7591;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        #admin-nav-container { margin-bottom: 24px; }
+
+        /* Upload Card */
+        .upload-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+            border: 2px dashed #d0d5dd;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 24px;
+        }
+        .upload-card:hover, .upload-card.dragover {
+            border-color: #0066ff;
+            background: #f7faff;
+        }
+        .upload-card i {
+            font-size: 48px;
+            color: #0066ff;
+            margin-bottom: 16px;
+        }
+        .upload-card h3 { font-size: 18px; margin-bottom: 8px; }
+        .upload-card p { color: #6e7591; font-size: 14px; }
+        .upload-card input[type="file"] { display: none; }
+
+        /* Status Panel */
+        .status-panel {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+        .status-panel h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+        }
+        .status-item {
+            background: #f8f9fb;
+            border-radius: 10px;
+            padding: 16px;
+        }
+        .status-item .label { font-size: 12px; color: #6e7591; text-transform: uppercase; letter-spacing: 0.3px; }
+        .status-item .value { font-size: 20px; font-weight: 800; color: #1a1f36; margin-top: 4px; }
+
+        /* Actions */
+        .actions-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0066ff, #0044cc);
+            color: white;
+            box-shadow: 0 3px 10px rgba(0,102,255,0.25);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,102,255,0.35); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-danger {
+            background: #ff17441a;
+            color: #ff1744;
+        }
+        .btn-danger:hover { background: #ff174433; }
+
+        /* Progress */
+        .progress-container {
+            display: none;
+            margin-bottom: 24px;
+        }
+        .progress-container.active { display: block; }
+        .progress-bar-outer {
+            width: 100%;
+            height: 8px;
+            background: #e0e5ec;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .progress-bar-inner {
+            height: 100%;
+            background: linear-gradient(90deg, #0066ff, #00c9a7);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .progress-text { font-size: 13px; color: #6e7591; margin-top: 6px; }
+
+        /* Preview Table */
+        .preview-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+            display: none;
+        }
+        .preview-card.active { display: block; }
+        .preview-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+        .sheet-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .sheet-tab {
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: #f0f4f8;
+            border: none;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .sheet-tab.active { background: #0066ff; color: white; }
+        .sheet-tab:hover:not(.active) { background: #e0e5ec; }
+        .preview-table-container { overflow-x: auto; max-height: 400px; overflow-y: auto; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        table th {
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 700;
+            color: #6e7591;
+            background: #f8f9fb;
+            border-bottom: 2px solid #eef0f3;
+            position: sticky;
+            top: 0;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f2f4f7;
+        }
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            z-index: 9999;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-success { background: #00c853; }
+        .toast-error { background: #ff1744; }
+    </style>
+</head>
+<body>
+    <div class="admin-analytics">
+        <div id="admin-nav-container"></div>
+        <h1><i class="fas fa-chart-line"></i> Quản Lý Dữ Liệu Giao Dịch</h1>
+        <p class="subtitle">Upload file Excel để cập nhật dữ liệu phân tích cho Dashboard</p>
+
+        <!-- Current Data Status -->
+        <div class="status-panel" id="statusPanel">
+            <h3><i class="fas fa-database"></i> Dữ liệu hiện tại trên hệ thống</h3>
+            <div class="status-info">
+                <div class="status-item">
+                    <div class="label">Trạng thái</div>
+                    <div class="value" id="statusState">Đang kiểm tra...</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">File gần nhất</div>
+                    <div class="value" id="statusFile">—</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">Ngày upload</div>
+                    <div class="value" id="statusDate">—</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">Số Sheet</div>
+                    <div class="value" id="statusSheets">—</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Area -->
+        <div class="upload-card" id="uploadCard">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <h3>Kéo thả hoặc click để chọn file</h3>
+            <p>Hỗ trợ .xlsx, .xls, .csv</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-container" id="progressContainer">
+            <strong>Đang xử lý...</strong>
+            <div class="progress-bar-outer">
+                <div class="progress-bar-inner" id="progressBar"></div>
+            </div>
+            <div class="progress-text" id="progressText">Đang đọc file...</div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions-bar">
+            <button class="btn btn-primary" id="btnUpload" disabled>
+                <i class="fas fa-upload"></i> Lưu lên hệ thống
+            </button>
+            <button class="btn btn-danger" id="btnDelete">
+                <i class="fas fa-trash"></i> Xoá dữ liệu cũ
+            </button>
+        </div>
+
+        <!-- Preview -->
+        <div class="preview-card" id="previewCard">
+            <h3><i class="fas fa-eye"></i> Xem trước dữ liệu</h3>
+            <div class="sheet-tabs" id="sheetTabs"></div>
+            <div class="preview-table-container">
+                <table id="previewTable">
+                    <thead><tr id="previewHead"></tr></thead>
+                    <tbody id="previewBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="js/main.js"></script>
+
+    <!-- SheetJS -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+    <script src="js/analytics.js"></script>
+</body>
+</html>

@@ -1,0 +1,579 @@
+/* =============================================
+   BÁO CÁO PHÂN TÍCH GIAO DỊCH — USER DASHBOARD
+   Đọc dữ liệu từ Firestore (admin upload)
+   UX tối ưu cho sếp xem: rõ ràng, dễ hiểu
+   ============================================= */
+
+// ── State ──
+let allSheetsData = {};
+let currentSheetData = [];
+let dailyHeaders = [];
+let sortDirection = {};
+
+// ── Chart Instances ──
+let barChartInstance = null;
+let pieChartInstance = null;
+let radarChartInstance = null;
+let polarChartInstance = null;
+let trendChartInstance = null;
+let compareChartInstance = null;
+
+// ── DOM ──
+const $ = id => document.getElementById(id);
+const sheetSelect = $('sheetSelect');
+const highThresholdInput = $('highThreshold');
+const lowThresholdInput = $('lowThreshold');
+const highValLabel = $('highVal');
+const lowValLabel = $('lowVal');
+const dashboardGrid = $('dashboardGrid');
+const splashScreen = $('splashScreen');
+const noDataScreen = $('noDataScreen');
+const searchInput = $('searchInput');
+const filterCategory = $('filterCategory');
+const inactiveDaysInput = $('inactiveDays');
+const inactiveDaysVal = $('inactiveDaysVal');
+
+// ── Events ──
+sheetSelect.addEventListener('change', () => loadSheetData(sheetSelect.value));
+highThresholdInput.addEventListener('input', updateThresholds);
+lowThresholdInput.addEventListener('input', updateThresholds);
+searchInput.addEventListener('input', renderTable);
+filterCategory.addEventListener('change', renderTable);
+$('btnExport').addEventListener('click', exportReport);
+inactiveDaysInput.addEventListener('input', () => {
+    inactiveDaysVal.textContent = inactiveDaysInput.value;
+    renderInactive();
+});
+
+// Sidebar nav
+document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+    item.addEventListener('click', e => {
+        e.preventDefault();
+        switchSection(item.getAttribute('data-section'));
+    });
+});
+
+$('sidebarToggle').addEventListener('click', () => {
+    document.querySelector('.sidebar').classList.toggle('collapsed');
+});
+$('mobileToggle').addEventListener('click', () => {
+    document.querySelector('.sidebar').classList.toggle('open');
+});
+
+// Sort
+document.querySelectorAll('.sort-icon').forEach(icon => {
+    icon.addEventListener('click', () => sortData(icon.getAttribute('data-col')));
+});
+
+// ── Boot ──
+document.addEventListener('DOMContentLoaded', loadFromFirestore);
+
+async function loadFromFirestore() {
+    try {
+        const metaDoc = await db.collection('analytics').doc('meta').get();
+        if (!metaDoc.exists) {
+            splashScreen.style.display = 'none';
+            noDataScreen.style.display = 'flex';
+            return;
+        }
+
+        const meta = metaDoc.data();
+        const sheetNames = meta.sheetNames || [];
+
+        // Hiện thời gian cập nhật
+        if (meta.uploadedAt) {
+            const d = meta.uploadedAt.toDate();
+            const locale = (typeof currentLang !== 'undefined' && currentLang === 'zh') ? 'zh-CN' : 'vi-VN';
+            $('dataInfoText').textContent = t('updated_at') +
+                d.toLocaleDateString(locale) + ' ' +
+                d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+            // Store for language switch
+            window._uploadedAt = d;
+        } else {
+            $('dataInfoText').textContent = t('data_loaded');
+        }
+
+        // Load all sheets
+        allSheetsData = {};
+        for (const name of sheetNames) {
+            const doc = await db.collection('analytics_sheets').doc(name).get();
+            if (doc.exists) allSheetsData[name] = doc.data();
+        }
+
+        // Sheet dropdown
+        sheetSelect.innerHTML = '';
+        sheetNames.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            sheetSelect.appendChild(opt);
+        });
+        sheetSelect.disabled = false;
+
+        // Show dashboard
+        splashScreen.style.display = 'none';
+        noDataScreen.style.display = 'none';
+        dashboardGrid.style.display = 'block';
+
+        loadSheetData(sheetNames[0]);
+
+    } catch (err) {
+        console.error('Firestore load error:', err);
+        splashScreen.querySelector('h2').textContent = 'Lỗi tải dữ liệu';
+        splashScreen.querySelector('p').textContent = err.message;
+        splashScreen.querySelector('.splash-icon').innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+    }
+}
+
+function loadSheetData(sheetName) {
+    const sheet = allSheetsData[sheetName];
+    if (!sheet) return;
+    currentSheetData = sheet.customers || [];
+    
+    // Lọc bỏ rác ở dữ liệu cũ (các cột không phải ngày tháng như 交易频率)
+    const rawHeaders = sheet.headers || [];
+    dailyHeaders = rawHeaders.filter(h => {
+        const s = String(h).trim();
+        const isCnDate = /^\d{1,2}月\d{1,2}日?$/.test(s);
+        const isSerialDate = !isNaN(s) && Number(s) > 40000;
+        return isCnDate || isSerialDate;
+    });
+    
+    analyzeAndRender();
+}
+
+// ── Section Switching ──
+function switchSection(section) {
+    document.querySelectorAll('.section-block').forEach(el => el.style.display = 'none');
+    const target = $('section-' + section);
+    if (target) target.style.display = 'block';
+
+    document.querySelectorAll('.nav-item[data-section]').forEach(n => n.classList.remove('active'));
+    const activeNav = document.querySelector(`.nav-item[data-section="${section}"]`);
+    if (activeNav) activeNav.classList.add('active');
+
+    const titleKeys = {
+        overview: 'title_overview',
+        charts: 'title_charts',
+        table: 'title_table',
+        trends: 'title_trends',
+        compare: 'title_compare',
+        inactive: 'title_inactive',
+        settings: 'title_settings'
+    };
+    $('pageTitle').textContent = t(titleKeys[section] || 'appName');
+
+    if (section === 'compare') renderCompare();
+    if (section === 'trends') renderTrends();
+    if (section === 'inactive') renderInactive();
+
+    document.querySelector('.sidebar').classList.remove('open');
+}
+
+// ── Threshold ──
+function updateThresholds() {
+    let high = parseInt(highThresholdInput.value);
+    let low = parseInt(lowThresholdInput.value);
+    if (low > high) {
+        if (this === highThresholdInput) { lowThresholdInput.value = high; low = high; }
+        else { highThresholdInput.value = low; high = low; }
+    }
+    highValLabel.textContent = high;
+    lowValLabel.textContent = low;
+    // Cập nhật label trên thẻ KPI
+    const htl = $('highThreshLabel');
+    const ltl = $('lowThreshLabel');
+    if (htl) htl.textContent = high;
+    if (ltl) ltl.textContent = low;
+    if (currentSheetData.length > 0) analyzeAndRender();
+}
+
+// ── Main Analyze & Render ──
+function analyzeAndRender() {
+    const highThresh = parseInt(highThresholdInput.value);
+    const lowThresh = parseInt(lowThresholdInput.value);
+
+    let highCount = 0, normalCount = 0, lowCount = 0, totalVolume = 0;
+    currentSheetData.sort((a, b) => b.total - a.total);
+
+    const labels = [], totals = [], bgColors = [];
+
+    currentSheetData.forEach(item => {
+        totalVolume += item.total;
+        if (item.total >= highThresh) { highCount++; item._category = 'high'; }
+        else if (item.total <= lowThresh) { lowCount++; item._category = 'low'; }
+        else { normalCount++; item._category = 'normal'; }
+
+        labels.push((item.name || item.id).substring(0, 22));
+        totals.push(item.total);
+        bgColors.push(item._category === 'high' ? 'rgba(0,200,83,0.75)' :
+            item._category === 'low' ? 'rgba(255,23,68,0.75)' : 'rgba(41,121,255,0.75)');
+    });
+
+    const total = currentSheetData.length || 1;
+    $('totalCustomers').textContent = currentSheetData.length;
+    $('highCount').textContent = highCount;
+    $('normalCount').textContent = normalCount;
+    $('lowCount').textContent = lowCount;
+    $('totalVolume').textContent = totalVolume.toLocaleString();
+    $('highPercent').textContent = Math.round(highCount / total * 100) + '%';
+    $('normalPercent').textContent = Math.round(normalCount / total * 100) + '%';
+    $('lowPercent').textContent = Math.round(lowCount / total * 100) + '%';
+
+    renderLeaderboard();
+    renderTable();
+    renderAlertSummary(highCount, normalCount, lowCount, totalVolume);
+    renderBarChart(labels, totals, bgColors);
+    renderPieChart(highCount, normalCount, lowCount);
+    renderRadarChart();
+    renderPolarChart();
+    if ($('section-trends').style.display !== 'none') renderTrends();
+    if ($('section-inactive').style.display !== 'none') renderInactive();
+}
+
+// ── Alert Summary — Sếp thấy ngay điều quan trọng ──
+function renderAlertSummary(highCount, normalCount, lowCount, totalVolume) {
+    const container = $('alertItems');
+    if (!container) return;
+    const total = currentSheetData.length;
+    const alerts = [];
+
+    const lowPct = total > 0 ? Math.round(lowCount / total * 100) : 0;
+    if (lowPct >= 40) {
+        alerts.push({ type: 'danger', icon: 'exclamation-triangle', text: t('alert_low_pct_high', { pct: `<strong>${lowPct}</strong>` }) });
+    } else if (lowPct >= 20) {
+        alerts.push({ type: 'warning', icon: 'exclamation-circle', text: t('alert_low_pct_mid', { pct: lowPct }) });
+    }
+
+    if (currentSheetData.length > 1 && totalVolume > 0) {
+        const topPct = Math.round(currentSheetData[0].total / totalVolume * 100);
+        if (topPct >= 30) {
+            const topName = currentSheetData[0].name || currentSheetData[0].id;
+            alerts.push({ type: 'info', icon: 'info-circle', text: t('alert_top_dominant', { name: `<strong>${topName}</strong>`, pct: `<strong>${topPct}%</strong>` }) });
+        }
+    }
+
+    const highPct = total > 0 ? Math.round(highCount / total * 100) : 0;
+    if (highPct >= 50) {
+        alerts.push({ type: 'success', icon: 'check-circle', text: t('alert_high_pct_good', { pct: `<strong>${highPct}</strong>` }) });
+    }
+
+    if (dailyHeaders.length >= 7) {
+        const last7 = dailyHeaders.slice(-7);
+        let inactiveCount = 0;
+        currentSheetData.forEach(item => {
+            const daily = item.daily || {};
+            let active = false;
+            for (const h of last7) { if ((daily[h] || 0) > 0) { active = true; break; } }
+            if (!active) inactiveCount++;
+        });
+        if (inactiveCount > 0) {
+            alerts.push({ type: 'warning', icon: 'user-clock', text: t('alert_inactive_7d', { count: `<strong>${inactiveCount}</strong>` }) });
+        }
+    }
+
+    if (alerts.length === 0) {
+        container.innerHTML = `<div class="alert-item alert-success"><i class="fas fa-check-circle"></i> ${t('alert_all_ok')}</div>`;
+    } else {
+        container.innerHTML = alerts.map(a =>
+            `<div class="alert-item alert-${a.type}"><i class="fas fa-${a.icon}"></i> ${a.text}</div>`
+        ).join('');
+    }
+}
+
+// ── Leaderboard ──
+function renderLeaderboard() {
+    const lb = $('leaderboard');
+    lb.innerHTML = '';
+    const medals = ['🥇', '🥈', '🥉'];
+    currentSheetData.slice(0, 5).forEach((item, i) => {
+        const div = document.createElement('div');
+        div.className = 'leader-item';
+        div.innerHTML = `
+            <span class="leader-rank rank-${i + 1}">${i < 3 ? medals[i] : (i + 1)}</span>
+            <div class="leader-info">
+                <div class="leader-name">${item.name || item.id}</div>
+                <div class="leader-sub">${item.id}</div>
+            </div>
+            <span class="leader-value">${item.total.toLocaleString()}</span>`;
+        lb.appendChild(div);
+    });
+}
+
+// ── Table ──
+function renderTable() {
+    const query = searchInput.value.toLowerCase();
+    const filter = filterCategory.value;
+    const maxTotal = currentSheetData.length > 0 ? currentSheetData[0].total : 1;
+    const tbody = document.querySelector('#dataTable tbody');
+    tbody.innerHTML = '';
+
+    let filtered = currentSheetData.filter(item => {
+        if (filter !== 'all' && item._category !== filter) return false;
+        if (query && !(item.id + ' ' + item.name).toLowerCase().includes(query)) return false;
+        return true;
+    });
+
+    filtered.forEach((item, idx) => {
+        const catLabel = t('tag_' + item._category);
+        const pct = maxTotal > 0 ? (item.total / maxTotal * 100) : 0;
+        const barColor = item._category === 'high' ? 'var(--green)' : item._category === 'low' ? 'var(--red)' : 'var(--blue)';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:600;color:var(--text-secondary)">${idx + 1}</td>
+            <td><strong>${item.id}</strong></td>
+            <td>${item.name}</td>
+            <td style="font-weight:700;">${item.total.toLocaleString()}</td>
+            <td><span class="tag tag-${item._category}">${catLabel}</span></td>
+            <td><div class="progress-bar-container"><div class="progress-bar-fill" style="width:${pct}%;background:${barColor};"></div></div></td>`;
+        tbody.appendChild(tr);
+    });
+    $('tableInfo').textContent = t('table_info', { filtered: filtered.length, total: currentSheetData.length });
+}
+
+function sortData(col) {
+    const dir = sortDirection[col] === 'asc' ? 'desc' : 'asc';
+    sortDirection[col] = dir;
+    currentSheetData.sort((a, b) => {
+        let va = a[col], vb = b[col];
+        if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb || '').toLowerCase(); }
+        return dir === 'asc' ? (va < vb ? -1 : 1) : (va > vb ? -1 : 1);
+    });
+    renderTable();
+}
+
+// ── Charts ──
+function renderBarChart(labels, totals, bgColors) {
+    if (barChartInstance) barChartInstance.destroy();
+    barChartInstance = new Chart($('barChart').getContext('2d'), {
+        type: 'bar',
+        data: { labels, datasets: [{ label: t('volume'), data: totals, backgroundColor: bgColors, borderRadius: 6, borderSkipped: false }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${t('chart_volume')}${ctx.parsed.y.toLocaleString()}` } } },
+            scales: { x: { ticks: { maxRotation: 50, minRotation: 30, font: { size: 11 } }, grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v.toLocaleString() } } }
+        }
+    });
+}
+
+function renderPieChart(high, normal, low) {
+    if (pieChartInstance) pieChartInstance.destroy();
+    pieChartInstance = new Chart($('pieChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: [t('tag_high'), t('tag_normal'), t('tag_low')],
+            datasets: [{ data: [high, normal, low], backgroundColor: ['#00c853', '#2979ff', '#ff1744'], borderWidth: 0, hoverOffset: 8 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 16, font: { size: 13, weight: 600 } } },
+                tooltip: { callbacks: { label: ctx => { const t = high + normal + low; return `${ctx.label}: ${ctx.parsed} KH (${Math.round(ctx.parsed / t * 100)}%)`; } } }
+            }
+        }
+    });
+}
+
+function renderRadarChart() {
+    if (radarChartInstance) radarChartInstance.destroy();
+    const top8 = currentSheetData.slice(0, 8);
+    radarChartInstance = new Chart($('radarChart').getContext('2d'), {
+        type: 'radar',
+        data: { labels: top8.map(i => (i.name || i.id).substring(0, 12)), datasets: [{ label: t('volume'), data: top8.map(i => i.total), backgroundColor: 'rgba(0,102,255,0.15)', borderColor: 'rgba(0,102,255,0.7)', borderWidth: 2, pointBackgroundColor: '#0066ff' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { r: { beginAtZero: true, ticks: { display: false }, grid: { color: 'rgba(0,0,0,0.06)' } } } }
+    });
+}
+
+function renderPolarChart() {
+    if (polarChartInstance) polarChartInstance.destroy();
+    const top6 = currentSheetData.slice(0, 6);
+    const colors = ['#0066ff', '#00c853', '#ff1744', '#ffab00', '#7c4dff', '#00bcd4'];
+    polarChartInstance = new Chart($('polarChart').getContext('2d'), {
+        type: 'polarArea',
+        data: { labels: top6.map(i => (i.name || i.id).substring(0, 15)), datasets: [{ data: top6.map(i => i.total), backgroundColor: colors.map(c => c + '88'), borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } } } }
+    });
+}
+
+// ── Trends ──
+function renderTrends() {
+    if (dailyHeaders.length === 0) return;
+    const dailyTotals = {}, dailyActive = {};
+    dailyHeaders.forEach(h => { dailyTotals[h] = 0; dailyActive[h] = 0; });
+
+    currentSheetData.forEach(item => {
+        const daily = item.daily || {};
+        dailyHeaders.forEach(h => {
+            const val = daily[h] || 0;
+            dailyTotals[h] += val;
+            if (val > 0) dailyActive[h]++;
+        });
+    });
+
+    const labels = dailyHeaders;
+    const displayLabels = labels.map(l => formatDateLabel(l));
+    const values = labels.map(l => dailyTotals[l]);
+    let peakIdx = 0, lowIdx = 0;
+    values.forEach((v, i) => { if (v > values[peakIdx]) peakIdx = i; if (v < values[lowIdx]) lowIdx = i; });
+
+    $('peakDay').innerHTML = `<i class="fas fa-arrow-up"></i><span>${displayLabels[peakIdx]} — <strong>${values[peakIdx].toLocaleString()}</strong> sản lượng</span>`;
+    $('lowDay').innerHTML = `<i class="fas fa-arrow-down"></i><span>${displayLabels[lowIdx]} — <strong>${values[lowIdx].toLocaleString()}</strong> sản lượng</span>`;
+
+    if (trendChartInstance) trendChartInstance.destroy();
+    trendChartInstance = new Chart($('trendChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: displayLabels,
+            datasets: [
+                { label: t('chart_total_volume'), data: values, fill: true, backgroundColor: 'rgba(0,102,255,0.08)', borderColor: '#0066ff', borderWidth: 3, tension: 0.4, pointBackgroundColor: '#0066ff', pointRadius: 5, pointHoverRadius: 8 },
+                { label: t('chart_active_kh'), data: labels.map(l => dailyActive[l]), fill: false, borderColor: '#00c853', borderWidth: 2, borderDash: [6, 3], tension: 0.4, pointBackgroundColor: '#00c853', pointRadius: 4, yAxisID: 'y1' }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}` } } },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, position: 'left', grid: { color: 'rgba(0,0,0,0.04)' }, title: { display: true, text: t('chart_total_volume') }, ticks: { callback: v => v.toLocaleString() } },
+                y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: t('chart_active_kh') } }
+            }
+        }
+    });
+
+    const dtbody = document.querySelector('#dailyTable tbody');
+    dtbody.innerHTML = '';
+    labels.forEach((l, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td style="font-weight:600;">${displayLabels[i]}</td><td style="font-weight:700;">${dailyTotals[l].toLocaleString()}</td><td>${dailyActive[l]}</td>`;
+        dtbody.appendChild(tr);
+    });
+}
+
+// ── Compare ──
+function renderCompare() {
+    const sheetNames = Object.keys(allSheetsData);
+    const sheetStats = sheetNames.map(name => {
+        const items = allSheetsData[name].customers || [];
+        const totalVol = items.reduce((s, i) => s + i.total, 0);
+        const count = items.length;
+        return { name, totalVol, count, avg: count > 0 ? Math.round(totalVol / count) : 0 };
+    }).sort((a, b) => b.totalVol - a.totalVol);
+
+    if (compareChartInstance) compareChartInstance.destroy();
+    const colors = ['#0066ff', '#00c853', '#ff1744', '#ffab00', '#7c4dff', '#00bcd4', '#ff6d00', '#c51162'];
+    compareChartInstance = new Chart($('compareChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: sheetStats.map(s => s.name),
+            datasets: [{ label: t('chart_total_volume'), data: sheetStats.map(s => s.totalVol), backgroundColor: sheetStats.map((_, i) => colors[i % colors.length] + 'cc'), borderRadius: 8, borderSkipped: false }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `Sản lượng: ${ctx.parsed.y.toLocaleString()}` } } },
+            scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v.toLocaleString() } } }
+        }
+    });
+
+    const tbody = document.querySelector('#compareTable tbody');
+    tbody.innerHTML = '';
+    const medals = ['🥇', '🥈', '🥉'];
+    sheetStats.forEach((s, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td style="font-size:18px;text-align:center;">${i < 3 ? medals[i] : (i + 1)}</td>
+            <td style="font-weight:700;">${s.name}</td>
+            <td style="font-weight:700;color:var(--primary);">${s.totalVol.toLocaleString()}</td>
+            <td>${s.count}</td><td>${s.avg.toLocaleString()}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+// ── Inactive ──
+function renderInactive() {
+    const nDays = parseInt(inactiveDaysInput.value);
+    if (dailyHeaders.length === 0 || currentSheetData.length === 0) return;
+
+    const lastNHeaders = dailyHeaders.slice(-nDays);
+    const inactiveList = [];
+    const activeList = [];
+
+    currentSheetData.forEach(item => {
+        const daily = item.daily || {};
+        let hasActivity = false;
+        let lastActiveDay = null;
+
+        for (const h of lastNHeaders) {
+            if ((daily[h] || 0) > 0) { hasActivity = true; break; }
+        }
+
+        for (let i = dailyHeaders.length - 1; i >= 0; i--) {
+            if ((daily[dailyHeaders[i]] || 0) > 0) { lastActiveDay = dailyHeaders[i]; break; }
+        }
+
+        if (hasActivity) activeList.push(item);
+        else inactiveList.push({ ...item, lastActiveDay });
+    });
+
+    $('inactiveCount').textContent = inactiveList.length;
+    $('activeCount').textContent = activeList.length;
+
+    const tbody = document.querySelector('#inactiveTable tbody');
+    tbody.innerHTML = '';
+
+    if (inactiveList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:30px;">
+            <i class="fas fa-check-circle text-green" style="font-size:28px;"></i><br><br>
+            ${t('all_active_msg', { n: nDays })}
+        </td></tr>`;
+        return;
+    }
+
+    inactiveList.forEach((item, idx) => {
+        const tr = document.createElement('tr');
+        const lastDay = item.lastActiveDay ? formatDateLabel(item.lastActiveDay) : `<span class="tag tag-low">${t('never_tx')}</span>`;
+        tr.innerHTML = `
+            <td style="font-weight:600;">${idx + 1}</td>
+            <td><strong>${item.id}</strong></td>
+            <td>${item.name}</td>
+            <td style="font-weight:700;">${item.total.toLocaleString()}</td>
+            <td>${lastDay}</td>
+            <td><span class="tag tag-inactive"><i class="fas fa-clock"></i> ${t('status_inactive')}</span></td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+// Chuyển đổi ngày tiếng Trung (3月2日) hoặc Excel serial thành ngày/tháng bình thường
+function formatDateLabel(val) {
+    const s = String(val).trim();
+    // Trường hợp 1: Tiếng Trung — "3月2日" → "02/03"
+    const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+    if (cnMatch) {
+        const month = cnMatch[1].padStart(2, '0');
+        const day = cnMatch[2].padStart(2, '0');
+        return `${day}/${month}`;
+    }
+    // Trường hợp 2: Excel serial date (số > 40000)
+    if (!isNaN(val) && Number(val) > 40000) {
+        const excelEpoch = new Date(1899, 11, 30);
+        const date = new Date(excelEpoch.getTime() + Number(val) * 86400000);
+        return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    }
+    return s;
+}
+
+// ── Export ──
+function exportReport() {
+    const sheetName = sheetSelect.value || 'BaoCao';
+    let csv = `Báo Cáo Phân Tích Giao Dịch - ${sheetName}\n`;
+    csv += `Ngưỡng GD Nhiều: ${highThresholdInput.value}, Ngưỡng GD Ít: ${lowThresholdInput.value}\n\n`;
+    csv += `ID/Ngân Hàng,Tên KH/Dịch Vụ,Tổng Sản Lượng,Phân Loại\n`;
+    currentSheetData.forEach(item => {
+        const cat = item._category === 'high' ? 'GD Nhiều' : item._category === 'low' ? 'GD Ít' : 'Bình Thường';
+        csv += `"${item.id}","${item.name}",${item.total},"${cat}"\n`;
+    });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `bao_cao_${sheetName}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}

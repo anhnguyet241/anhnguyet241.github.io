@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <a href="questions.html" class="${currentPage === 'questions.html' ? 'active' : ''}">Ngân hàng Câu hỏi</a>
             <a href="quiz-sets.html" class="${currentPage === 'quiz-sets.html' ? 'active' : ''}">Quản lý Bộ đề</a>
             <a href="results.html" class="${currentPage === 'results.html' ? 'active' : ''}">Xem Kết quả</a>
+            <a href="analytics.html" class="${currentPage === 'analytics.html' ? 'active' : ''}">Phân Tích GD</a>
         </nav>
     `;
 
