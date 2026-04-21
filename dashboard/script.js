@@ -91,6 +91,12 @@ function renderCockpit() {
     const grid = $('machineSplashGrid');
     grid.innerHTML = '';
     
+    // Khởi tạo dropdown Đổi Máy
+    const machineDropdown = $('machineSelectDropdown');
+    if (machineDropdown) {
+        machineDropdown.innerHTML = '<option value="__back__" data-i18n="switch_machine">Trở về Sơ Đồ</option>';
+    }
+    
     // Luôn render đủ 5 máy
     for (let i = 1; i <= 5; i++) {
         const machineId = String(i);
@@ -105,16 +111,27 @@ function renderCockpit() {
             const dateStr = machineData.uploadedAt 
                 ? new Date(machineData.uploadedAt).toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'vi-VN')
                 : '';
+                
+            let dispName = machineData.name || `Máy 00${i}`;
+            if (currentLang === 'zh') dispName = dispName.replace(/Máy/g, '设备');
             
             card.innerHTML = `
                 <i class="fas fa-computer"></i>
-                <h3>${machineData.name}</h3>
+                <h3>${dispName}</h3>
                 <span class="machine-status">${machineData.sheetNames.length} ${currentLang==='zh'?'个员工':'NV'} • ${dateStr}</span>
             `;
             
             card.addEventListener('click', () => {
                 loadMachine(machineId, machineData);
             });
+            
+            // Add options to dropdown 
+            if (machineDropdown) {
+                const opt = document.createElement('option');
+                opt.value = machineId;
+                opt.textContent = dispName;
+                machineDropdown.appendChild(opt);
+            }
         } else {
             // Máy trống
             card.className = 'machine-card empty';
@@ -137,17 +154,31 @@ $('machineLangSwitchBtn')?.addEventListener('click', () => {
     renderCockpit(); // Render lại ngày và text trên card máy
 });
 
-// ── Quản lý nút Đổi Máy (Quay Lại) trong Dashboard ──
-$('switchMachineBtn')?.addEventListener('click', () => {
-    // Ẩn Dashboard
-    $('mainDashboardContainer').style.display = 'none';
-    // Hiện lại Cockpit
-    $('machineSelectionScreen').classList.add('active');
-    renderCockpit(); // Render lại lỡ có ngầm kết nối
+// ── Quản lý Dropdown Đổi Máy trong Dashboard ──
+$('machineSelectDropdown')?.addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val === '__back__') {
+        // Trở về sơ đồ Cockpit
+        $('mainDashboardContainer').style.display = 'none';
+        $('machineSelectionScreen').classList.add('active');
+        renderCockpit();
+    } else {
+        // Tải máy mới
+        const machineData = systemMeta?.machines?.[val];
+        if (machineData) {
+            loadMachine(val, machineData);
+        }
+    }
 });
 
-// ── Load dữ liệu một máy cụ thể ──
 async function loadMachine(machineId, machineData) {
+    // Set giá trị dropdown (nếu có)
+    const machineDropdown = $('machineSelectDropdown');
+    if (machineDropdown) machineDropdown.value = machineId;
+
+    // Lưu ID máy dùng cho Đổi ngôn ngữ
+    window._currentMachineId = machineId;
+
     // Ẩn grid máy, hiện loading
     $('machineSplashGrid').style.display = 'none';
     $('machineLoadingSpinner').style.display = 'flex';
@@ -158,6 +189,7 @@ async function loadMachine(machineId, machineData) {
     if (machineData.uploadedAt) {
         const d = new Date(machineData.uploadedAt);
         const locale = currentLang === 'zh' ? 'zh-CN' : 'vi-VN';
+        $('dataInfoText').removeAttribute('data-i18n'); // Bỏ để tránh đè lúc đổi ngôn ngữ
         $('dataInfoText').textContent = t('updated_at') +
             d.toLocaleDateString(locale) + ' ' +
             d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });

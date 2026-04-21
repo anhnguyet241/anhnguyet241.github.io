@@ -103,14 +103,17 @@
                 </div>
 
                 <!-- Language Switch Button -->
-                <button class="lang-switch" id="langSwitchBtn">
+                <button class="lang-switch" id="langSwitch">
                     <span id="langFlag" class="lang-flag">🇻🇳</span> 
-                    <span id="langLabel">Việt</span>
+                    <span id="langLabel" class="lang-label">Việt</span>
                 </button>
 
-                <button class="switch-machine-btn" id="switchMachineBtn">
-                    <i class="fas fa-desktop"></i> <span data-i18n="switch_machine">Đổi Máy</span>
-                </button>
+                <div class="sheet-selector">
+                    <label class="sheet-label"><i class="fas fa-desktop"></i></label>
+                    <select id="machineSelectDropdown">
+                        <option value="" disabled selected data-i18n="switch_machine">Đổi Máy</option>
+                    </select>
+                </div>
 
                 <div class="sheet-selector">
                     <label class="sheet-label" data-i18n="label_view">查看：</label>

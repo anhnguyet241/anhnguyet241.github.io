@@ -360,6 +360,23 @@ function toggleLanguage() {
     // Re-render dynamic content if dashboard is loaded
     if (typeof analyzeAndRender === 'function' && typeof currentSheetData !== 'undefined' && currentSheetData.length > 0) {
         analyzeAndRender();
+        // Update updated_at text manually since it loses data-i18n
+        if (window._uploadedAt) {
+            const locale = currentLang === 'zh' ? 'zh-CN' : 'vi-VN';
+            document.getElementById('dataInfoText').textContent = t('updated_at') +
+                window._uploadedAt.toLocaleDateString(locale) + ' ' +
+                window._uploadedAt.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+        }
+    }
+    
+    // Re-render machine layout and dropdowns (which translates Máy -> 设备)
+    if (typeof renderCockpit === 'function') {
+        renderCockpit();
+        // Giữ lại dropdown được chọn
+        if (window._currentMachineId) {
+            const dp = document.getElementById('machineSelectDropdown');
+            if (dp) dp.value = window._currentMachineId;
+        }
     }
 
     // Re-render section-specific content
