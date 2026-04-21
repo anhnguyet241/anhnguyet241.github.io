@@ -60,6 +60,65 @@
         .upload-card p { color: #6e7591; font-size: 14px; }
         .upload-card input[type="file"] { display: none; }
 
+        /* Machine Selector */
+        .machine-selector {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+        .machine-selector h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #1a1f36;
+        }
+        .machine-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 12px;
+        }
+        .machine-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: #f8f9fb;
+            border: 2px solid transparent;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .machine-label i {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: #6e7591;
+            transition: color 0.2s;
+        }
+        .machine-label span {
+            font-weight: 600;
+            font-size: 14px;
+            color: #6e7591;
+            transition: color 0.2s;
+        }
+        .machine-label:hover {
+            background: #f0f4f8;
+        }
+        input[type="radio"] {
+            display: none;
+        }
+        input[type="radio"]:checked + .machine-label {
+            border-color: #0066ff;
+            background: #eef5ff;
+        }
+        input[type="radio"]:checked + .machine-label i,
+        input[type="radio"]:checked + .machine-label span {
+            color: #0066ff;
+        }
+
         /* Status Panel */
         .status-panel {
             background: white;
@@ -245,6 +304,48 @@
                     <div class="label">Số Sheet</div>
                     <div class="value" id="statusSheets">—</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Machine Selector -->
+        <div class="machine-selector">
+            <h3><i class="fas fa-desktop"></i> Chọn Máy Cần Cập Nhật</h3>
+            <div class="machine-grid" id="machineGrid">
+                <label>
+                    <input type="radio" name="machineSelect" value="1" checked>
+                    <div class="machine-label">
+                        <i class="fas fa-computer"></i>
+                        <span>Máy 001</span>
+                    </div>
+                </label>
+                <label>
+                    <input type="radio" name="machineSelect" value="2">
+                    <div class="machine-label">
+                        <i class="fas fa-computer"></i>
+                        <span>Máy 002</span>
+                    </div>
+                </label>
+                <label>
+                    <input type="radio" name="machineSelect" value="3">
+                    <div class="machine-label">
+                        <i class="fas fa-computer"></i>
+                        <span>Máy 003</span>
+                    </div>
+                </label>
+                <label>
+                    <input type="radio" name="machineSelect" value="4">
+                    <div class="machine-label">
+                        <i class="fas fa-computer"></i>
+                        <span>Máy 004</span>
+                    </div>
+                </label>
+                <label>
+                    <input type="radio" name="machineSelect" value="5">
+                    <div class="machine-label">
+                        <i class="fas fa-computer"></i>
+                        <span>Máy 005</span>
+                    </div>
+                </label>
             </div>
         </div>
 

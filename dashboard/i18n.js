@@ -12,7 +12,13 @@ const TRANSLATIONS = {
         nav_trends: '每日趋势',
         nav_compare: '员工对比',
         nav_inactive: '停止交易客户',
+        nav_settings: '设置',
         nav_back: '返回',
+
+        switch_machine: '切换设备',
+        machine_select_title: '🔥 请选择设备空闲 🔥',
+        machine_select_desc: '选择下方的一台设备以查看该设备的详细分析报告。',
+        machine_empty: '无数据',
 
         title_overview: '交易总览',
         title_charts: '数据分析图表',
@@ -29,8 +35,9 @@ const TRANSLATIONS = {
         nodata_title: '暂无数据',
         nodata_sub: '交易数据尚未更新，请联系管理员。',
 
-        label_staff: '员工：',
-        select_staff: '选择员工',
+        label_view: '查看：',
+        select_all: '📊 综合 (全部员工)',
+        select_staff_prefix: '👤 ',
 
         kpi_total_customers: '客户总数',
         kpi_high: '高频交易',
@@ -125,6 +132,19 @@ const TRANSLATIONS = {
         tag_low: '低频',
         tag_inactive: '已停止',
 
+        // Staff ranking card
+        staff_rank_title: '员工排行榜',
+        staff_rank_sub: '各员工交易量对比',
+        col_staff_rank: '排名',
+        col_staff_name: '员工',
+        col_staff_vol: '总交易量',
+        col_staff_kh: '客户数',
+        viewing_all: '综合视图（全部员工）',
+        viewing_staff: '员工视图',
+        kpi_total_customers_all: '全部客户',
+        kpi_high_all: '高频客户',
+        kpi_low_all: '低频客户',
+
         // Updated at
         updated_at: '更新于：',
         data_loaded: '数据已加载',
@@ -138,7 +158,13 @@ const TRANSLATIONS = {
         nav_trends: 'Xu Hướng Ngày',
         nav_compare: 'So Sánh NV',
         nav_inactive: 'KH Ngưng GD',
+        nav_settings: 'Cài Đặt',
         nav_back: 'Quay Lại',
+
+        switch_machine: 'Đổi Máy',
+        machine_select_title: '🔥 Vui lòng chọn máy tính rảnh rỗi 🔥',
+        machine_select_desc: 'Chọn một máy tính bên dưới để xem báo cáo phân tích chi tiết của máy đó.',
+        machine_empty: 'Chưa có dữ liệu',
 
         title_overview: 'Tổng Quan Giao Dịch',
         title_charts: 'Biểu Đồ Phân Tích',
@@ -155,8 +181,9 @@ const TRANSLATIONS = {
         nodata_title: 'Chưa có dữ liệu',
         nodata_sub: 'Dữ liệu giao dịch chưa được cập nhật. Vui lòng liên hệ quản trị viên.',
 
-        label_staff: 'Nhân viên:',
-        select_staff: 'Chọn nhân viên',
+        label_view: 'Xem:',
+        select_all: '📊 Tổng hợp (Tất cả NV)',
+        select_staff_prefix: '👤 ',
 
         kpi_total_customers: 'Tổng Khách Hàng',
         kpi_high: 'GD Nhiều',
@@ -251,6 +278,19 @@ const TRANSLATIONS = {
         tag_low: 'GD Ít',
         tag_inactive: 'Ngưng hoạt động',
 
+        // Staff ranking card
+        staff_rank_title: 'Xếp Hạng Nhân Viên',
+        staff_rank_sub: 'So sánh sản lượng từng nhân viên',
+        col_staff_rank: 'Hạng',
+        col_staff_name: 'Nhân Viên',
+        col_staff_vol: 'Tổng Sản Lượng',
+        col_staff_kh: 'Số KH',
+        viewing_all: 'Tổng hợp toàn bộ nhân viên',
+        viewing_staff: 'Đang xem nhân viên',
+        kpi_total_customers_all: 'Tổng KH',
+        kpi_high_all: 'KH GD Nhiều',
+        kpi_low_all: 'KH GD Ít',
+
         // Updated at
         updated_at: 'Cập nhật: ',
         data_loaded: 'Đã tải dữ liệu',
@@ -281,6 +321,14 @@ function applyTranslations() {
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
         const key = el.getAttribute('data-i18n-placeholder');
         el.placeholder = t(key);
+    });
+
+    // Cập nhật dropdown options được tạo động (không có data-i18n)
+    const allOpt = document.querySelector('#sheetSelect option[data-i18n-key]');
+    if (allOpt) allOpt.textContent = t(allOpt.getAttribute('data-i18n-key'));
+
+    document.querySelectorAll('#sheetSelect option[data-staff-name]').forEach(opt => {
+        opt.textContent = t('select_staff_prefix') + opt.getAttribute('data-staff-name');
     });
 
     // Update html lang attribute

@@ -17,7 +17,7 @@ const previewHead = document.getElementById('previewHead');
 const previewBody = document.getElementById('previewBody');
 
 // ── Init ──
-document.addEventListener('DOMContentLoaded', checkCurrentData);
+document.addEventListener('DOMContentLoaded', init);
 
 // ── Upload Card Click ──
 uploadCard.addEventListener('click', () => fileInput.click());
@@ -56,7 +56,7 @@ btnDelete.addEventListener('click', async () => {
         setProgress(100, 'Đã xoá thành công!');
         hideProgress(1500);
         showToast('Đã xoá toàn bộ dữ liệu!', 'success');
-        checkCurrentData();
+        init();
     } catch (err) {
         console.error(err);
         showToast('Lỗi khi xoá: ' + err.message, 'error');
@@ -64,32 +64,36 @@ btnDelete.addEventListener('click', async () => {
     }
 });
 
-// ── Check Current Data on Firestore ──
-async function checkCurrentData() {
+// ── Initialization & Current Data Loading ──
+async function init() {
     try {
         const metaDoc = await db.collection('analytics').doc('meta').get();
         if (metaDoc.exists) {
-            const meta = metaDoc.data();
-            document.getElementById('statusState').textContent = '✅ Có dữ liệu';
-            document.getElementById('statusState').style.color = '#00c853';
-            document.getElementById('statusFile').textContent = meta.fileName || '—';
-            document.getElementById('statusSheets').textContent = meta.sheetNames ? meta.sheetNames.length : '—';
-            if (meta.uploadedAt) {
-                const d = meta.uploadedAt.toDate();
-                document.getElementById('statusDate').textContent =
-                    d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+            const data = metaDoc.data();
+            const ts = data.lastUpdated ? data.lastUpdated.toDate() : new Date();
+            document.getElementById('statusState').innerHTML = `<span style="color:#00c853;"><i class="fas fa-check-circle"></i> Sẵn sàng</span>`;
+            document.getElementById('statusDate').textContent = `${ts.toLocaleDateString('vi-VN')} ${ts.toLocaleTimeString('vi-VN')}`;
+            
+            // Check if machines exist
+            if (data.machines) {
+                const count = Object.keys(data.machines).length;
+                document.getElementById('statusFile').textContent = count > 0 ? `${count} máy đang hoạt động` : 'Chưa có dữ liệu máy nào';
+                let totalSheets = 0;
+                Object.values(data.machines).forEach(m => {
+                    if (m.sheetNames) totalSheets += m.sheetNames.length;
+                });
+                document.getElementById('statusSheets').textContent = totalSheets;
+            } else {
+                // Legacy support
+                document.getElementById('statusFile').textContent = data.fileName || 'Đã có dữ liệu file cũ';
+                document.getElementById('statusSheets').textContent = data.sheetNames ? data.sheetNames.length : '—';
             }
         } else {
-            document.getElementById('statusState').textContent = '⚠️ Chưa có';
-            document.getElementById('statusState').style.color = '#ff1744';
-            document.getElementById('statusFile').textContent = '—';
-            document.getElementById('statusDate').textContent = '—';
-            document.getElementById('statusSheets').textContent = '—';
+            document.getElementById('statusState').innerHTML = `<span style="color:#ff1744;"><i class="fas fa-times-circle"></i> Trống</span>`;
         }
     } catch (err) {
-        console.error(err);
-        document.getElementById('statusState').textContent = '❌ Lỗi kết nối';
-        document.getElementById('statusState').style.color = '#ff1744';
+        console.error("Lỗi khi đọc Firestore:", err);
+        document.getElementById('statusState').innerHTML = `<span style="color:#ff1744;"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối</span>`;
     }
 }
 
@@ -220,67 +224,99 @@ function renderPreview(sheetName) {
     }
 }
 
-// ── Save to Firestore ──
+// ── Save to Firestore (Multi-Machine) ──
 async function saveToFirestore() {
     if (!parsedWorkbook || Object.keys(parsedSheetsData).length === 0) return;
+
+    // Lấy ID máy đang chọn
+    const selectedMachine = document.querySelector('input[name="machineSelect"]:checked').value;
+    const machineId = `machine_${selectedMachine}`;
+    const machineName = `Máy 00${selectedMachine}`;
 
     const fileName = uploadCard.querySelector('h3').textContent;
     const sheetNames = parsedWorkbook.SheetNames;
     const allHeaders = parsedSheetsData[sheetNames[0]]?.headers || [];
 
     btnUpload.disabled = true;
-    showProgress('Bắt đầu lưu dữ liệu...');
+    showProgress(`Bắt đầu lưu dữ liệu cho ${machineName}...`);
 
     try {
-        const totalSteps = sheetNames.length + 1;
+        const totalSteps = sheetNames.length + 2;
         let step = 0;
 
-        // 1. Delete old sheet documents first
-        setProgress(5, 'Xoá dữ liệu cũ...');
+        // 1. Chỉ xoá dữ liệu cũ CỦA MÁY NÀY thôi
+        setProgress(5, `Xoá dữ liệu cũ của ${machineName}...`);
+        
+        // Lấy tất cả doc và lọc ra doc thuộc máy này
+        // (Do firestore web không hỗ trợ startsWith query dễ dàng, ta dùng vòng lặp nếu doc không quá nhiều)
         const oldDocs = await db.collection('analytics_sheets').get();
         if (!oldDocs.empty) {
             const deleteBatch = db.batch();
-            oldDocs.forEach(doc => deleteBatch.delete(doc.ref));
+            oldDocs.forEach(doc => {
+                if (doc.id.startsWith(`${machineId}_`)) {
+                    deleteBatch.delete(doc.ref);
+                }
+            });
             await deleteBatch.commit();
         }
 
-        // 2. Save each sheet as a document
+        // 2. Lưu từng sheet vào collection, với prefix là machine_X_
         for (const name of sheetNames) {
             step++;
             const pct = Math.round((step / totalSteps) * 90) + 5;
-            setProgress(pct, `Đang lưu sheet "${name}"... (${step}/${sheetNames.length})`);
-
-            const sheetData = parsedSheetsData[name];
-
-            // Firestore document limit is 1MB. If customers array is huge, we need to chunk.
-            // For now, save as single doc (most sheets will be under 1MB).
-            await db.collection('analytics_sheets').doc(name).set({
-                customers: sheetData.customers,
-                headers: sheetData.headers,
-                customerCount: sheetData.customers.length
-            });
+            setProgress(pct, `Đang xử lý sheet: ${name}`);
+            
+            // Xoá header trước khi lưu
+            const docData = parsedSheetsData[name];
+            const cleanData = { customers: docData.customers };
+            
+            await db.collection('analytics_sheets').doc(`${machineId}_${name}`).set(cleanData);
         }
 
-        // 3. Save metadata
+        // 3. Đọc meta cũ, update meta mới (cộng dồn máy)
         step++;
-        setProgress(95, 'Lưu metadata...');
-        await db.collection('analytics').doc('meta').set({
+        setProgress(95, 'Cập nhật thông tin hệ thống...');
+        
+        const metaRef = db.collection('analytics').doc('meta');
+        const metaDoc = await metaRef.get();
+        let metaData = metaDoc.exists ? metaDoc.data() : { machines: {} };
+        
+        // Đảm bảo cấu trúc mới
+        if (!metaData.machines) {
+            // Chuyển đổi từ cũ sang mới (nếu cần)
+            metaData = { 
+                machines: {},
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            };
+        }
+
+        // Cập nhật record cho máy này
+        metaData.machines[selectedMachine] = {
+            id: selectedMachine,
+            name: machineName,
             fileName: fileName,
             sheetNames: sheetNames,
-            dateHeaders: allHeaders,
-            uploadedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            totalSheets: sheetNames.length
-        });
+            headers: allHeaders, // Lưu header ở meta để file dashboard load nhanh 
+            uploadedAt: new Date().toISOString()
+        };
+        metaData.lastUpdated = firebase.firestore.FieldValue.serverTimestamp();
+
+        // Lưu meta
+        await metaRef.set(metaData);
 
         setProgress(100, 'Hoàn thành!');
-        showToast('Đã lưu thành công lên hệ thống! 🎉', 'success');
-        hideProgress(2000);
-        checkCurrentData();
+        showToast(`Đã lưu thành công dữ liệu cho ${machineName}!`, 'success');
+        
+        setTimeout(() => {
+            init();
+            progressContainer.classList.remove('active');
+            btnUpload.disabled = false;
+        }, 1500);
 
     } catch (err) {
-        console.error('Firestore save error:', err);
-        showToast('Lỗi khi lưu: ' + err.message, 'error');
-        hideProgress(0);
+        console.error(err);
+        showToast('Lỗi khi lưu dữ liệu. Vui lòng mở console xem chi tiết.', 'error');
+        progressContainer.classList.remove('active');
         btnUpload.disabled = false;
     }
 }

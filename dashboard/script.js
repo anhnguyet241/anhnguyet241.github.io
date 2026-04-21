@@ -20,6 +20,9 @@ let compareChartInstance = null;
 
 // ── DOM ──
 const $ = id => document.getElementById(id);
+
+// Làm tròn số nguyên khi hiển thị — tránh số lẻ gây nhầm lẫn
+const fmt = n => Math.round(n).toLocaleString();
 const sheetSelect = $('sheetSelect');
 const highThresholdInput = $('highThreshold');
 const lowThresholdInput = $('lowThreshold');
@@ -65,81 +68,228 @@ document.querySelectorAll('.sort-icon').forEach(icon => {
     icon.addEventListener('click', () => sortData(icon.getAttribute('data-col')));
 });
 
-// ── Boot ──
-document.addEventListener('DOMContentLoaded', loadFromFirestore);
+// ── Boot: Dashboard 5 Máy ──
+let systemMeta = null;
 
-async function loadFromFirestore() {
+document.addEventListener('DOMContentLoaded', loadMetaAndCockpit);
+
+async function loadMetaAndCockpit() {
     try {
         const metaDoc = await db.collection('analytics').doc('meta').get();
-        if (!metaDoc.exists) {
-            splashScreen.style.display = 'none';
-            noDataScreen.style.display = 'flex';
-            return;
+        if (metaDoc.exists) {
+            systemMeta = metaDoc.data();
         }
+    } catch (err) {
+        console.error('Meta load error', err);
+    }
+    renderCockpit();
+    applyTranslations(); // Áp dụng ngôn ngữ cho màn hình cockpit
+}
 
-        const meta = metaDoc.data();
-        const sheetNames = meta.sheetNames || [];
-
-        // Hiện thời gian cập nhật
-        if (meta.uploadedAt) {
-            const d = meta.uploadedAt.toDate();
-            const locale = (typeof currentLang !== 'undefined' && currentLang === 'zh') ? 'zh-CN' : 'vi-VN';
-            $('dataInfoText').textContent = t('updated_at') +
-                d.toLocaleDateString(locale) + ' ' +
-                d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-            // Store for language switch
-            window._uploadedAt = d;
+// ── Render màn hình 5 Máy ──
+function renderCockpit() {
+    const grid = $('machineSplashGrid');
+    grid.innerHTML = '';
+    
+    // Luôn render đủ 5 máy
+    for (let i = 1; i <= 5; i++) {
+        const machineId = String(i);
+        // Kiểm tra xem máy này có data trong meta không
+        const machineData = systemMeta?.machines?.[machineId];
+        
+        const card = document.createElement('div');
+        
+        if (machineData && machineData.sheetNames && machineData.sheetNames.length > 0) {
+            // Máy có dữ liệu
+            card.className = 'machine-card loaded';
+            const dateStr = machineData.uploadedAt 
+                ? new Date(machineData.uploadedAt).toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'vi-VN')
+                : '';
+            
+            card.innerHTML = `
+                <i class="fas fa-computer"></i>
+                <h3>${machineData.name}</h3>
+                <span class="machine-status">${machineData.sheetNames.length} ${currentLang==='zh'?'个员工':'NV'} • ${dateStr}</span>
+            `;
+            
+            card.addEventListener('click', () => {
+                loadMachine(machineId, machineData);
+            });
         } else {
-            $('dataInfoText').textContent = t('data_loaded');
+            // Máy trống
+            card.className = 'machine-card empty';
+            card.innerHTML = `
+                <i class="fas fa-desktop"></i>
+                <h3>Máy 00${machineId}</h3>
+                <span class="machine-status" data-i18n="machine_empty">${t('machine_empty')}</span>
+            `;
         }
+        
+        grid.appendChild(card);
+    }
+}
 
-        // Load all sheets
+// ── Nút Đổi Ngôn Ngữ riêng tại màn hình Cockpit ──
+$('machineLangSwitchBtn')?.addEventListener('click', () => {
+    currentLang = currentLang === 'vi' ? 'zh' : 'vi';
+    localStorage.setItem('dashboardLang', currentLang);
+    applyTranslations();
+    renderCockpit(); // Render lại ngày và text trên card máy
+});
+
+// ── Quản lý nút Đổi Máy (Quay Lại) trong Dashboard ──
+$('switchMachineBtn')?.addEventListener('click', () => {
+    // Ẩn Dashboard
+    $('mainDashboardContainer').style.display = 'none';
+    // Hiện lại Cockpit
+    $('machineSelectionScreen').classList.add('active');
+    renderCockpit(); // Render lại lỡ có ngầm kết nối
+});
+
+// ── Load dữ liệu một máy cụ thể ──
+async function loadMachine(machineId, machineData) {
+    // Ẩn grid máy, hiện loading
+    $('machineSplashGrid').style.display = 'none';
+    $('machineLoadingSpinner').style.display = 'flex';
+    
+    const sheetNames = machineData.sheetNames || [];
+
+    // Hiện thời gian cập nhật của máy này
+    if (machineData.uploadedAt) {
+        const d = new Date(machineData.uploadedAt);
+        const locale = currentLang === 'zh' ? 'zh-CN' : 'vi-VN';
+        $('dataInfoText').textContent = t('updated_at') +
+            d.toLocaleDateString(locale) + ' ' +
+            d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+        window._uploadedAt = d;
+    }
+
+    try {
+        // Load các sheets (nhân viên) của máy này
         allSheetsData = {};
         for (const name of sheetNames) {
-            const doc = await db.collection('analytics_sheets').doc(name).get();
+            // Thêm prefix machine_X_
+            const docId = `machine_${machineId}_${name}`;
+            const doc = await db.collection('analytics_sheets').doc(docId).get();
             if (doc.exists) allSheetsData[name] = doc.data();
         }
 
-        // Sheet dropdown
+        // Sheet dropdown — "全部" đầu tiên, rồi từng nhân viên
         sheetSelect.innerHTML = '';
+
+        const allOpt = document.createElement('option');
+        allOpt.value = '__all__';
+        allOpt.textContent = t('select_all');
+        allOpt.setAttribute('data-i18n-key', 'select_all');
+        sheetSelect.appendChild(allOpt);
+
         sheetNames.forEach(name => {
             const opt = document.createElement('option');
             opt.value = name;
-            opt.textContent = name;
+            opt.textContent = t('select_staff_prefix') + name;
+            opt.setAttribute('data-staff-name', name);
             sheetSelect.appendChild(opt);
         });
         sheetSelect.disabled = false;
 
-        // Show dashboard
-        splashScreen.style.display = 'none';
-        noDataScreen.style.display = 'none';
-        dashboardGrid.style.display = 'block';
+        // Tắt màn hình Cockpit, chuyển qua main dashboard
+        $('machineLoadingSpinner').style.display = 'none';
+        $('machineSelectionScreen').classList.remove('active');
+        
+        // Phục hồi lại nút grid cho lần vào sau
+        $('machineSplashGrid').style.display = 'grid';
+        
+        // Hiện khung chính
+        $('mainDashboardContainer').style.display = 'block';
+        
+        // --- QUAN TRỌNG: Ẩn loading cũ và hiện Dashboard Grid ---
+        $('splashScreen').style.display = 'none';
+        $('noDataScreen').style.display = 'none';
+        $('dashboardGrid').style.display = 'block';
 
-        loadSheetData(sheetNames[0]);
+        // Mặc định load tổng hợp của máy này
+        loadSheetData('__all__');
 
     } catch (err) {
         console.error('Firestore load error:', err);
-        splashScreen.querySelector('h2').textContent = 'Lỗi tải dữ liệu';
-        splashScreen.querySelector('p').textContent = err.message;
-        splashScreen.querySelector('.splash-icon').innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+        alert('Lỗi khi tải dữ liệu từ máy này. Vui lòng thử lại sau.');
+        $('machineLoadingSpinner').style.display = 'none';
+        $('machineSplashGrid').style.display = 'grid';
     }
 }
 
 function loadSheetData(sheetName) {
-    const sheet = allSheetsData[sheetName];
-    if (!sheet) return;
-    currentSheetData = sheet.customers || [];
-    
-    // Lọc bỏ rác ở dữ liệu cũ (các cột không phải ngày tháng như 交易频率)
-    const rawHeaders = sheet.headers || [];
-    dailyHeaders = rawHeaders.filter(h => {
-        const s = String(h).trim();
-        const isCnDate = /^\d{1,2}月\d{1,2}日?$/.test(s);
-        const isSerialDate = !isNaN(s) && Number(s) > 40000;
-        return isCnDate || isSerialDate;
-    });
-    
+    if (sheetName === '__all__') {
+        // Gộp tất cả sheets
+        const merged = mergeAllSheets();
+        currentSheetData = merged.customers;
+        dailyHeaders = merged.headers;
+    } else {
+        const sheet = allSheetsData[sheetName];
+        if (!sheet) return;
+        currentSheetData = sheet.customers || [];
+        // Lọc bỏ rác ở dữ liệu cũ (các cột không phải ngày tháng như 交易频率)
+        const rawHeaders = sheet.headers || [];
+        dailyHeaders = rawHeaders.filter(h => {
+            const s = String(h).trim();
+            return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
+        });
+    }
     analyzeAndRender();
+}
+
+// Gộp data tất cả nhân viên thành 1 danh sách khách hàng
+// Nếu cùng KH (cùng ID) xuất hiện ở nhiều NV → cộng dồn
+function mergeAllSheets() {
+    const sheetNames = Object.keys(allSheetsData);
+    if (sheetNames.length === 0) return { customers: [], headers: [] };
+
+    // Lấy headers từ sheet đầu
+    const firstSheet = allSheetsData[sheetNames[0]];
+    const rawHeaders = firstSheet.headers || [];
+    const headers = rawHeaders.filter(h => {
+        const s = String(h).trim();
+        return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
+    });
+
+    // Map: id → {id, name, total, daily, _staff: [...]}
+    const customerMap = new Map();
+
+    sheetNames.forEach(sheetName => {
+        const sheet = allSheetsData[sheetName];
+        const customers = sheet.customers || [];
+
+        customers.forEach(item => {
+            const key = String(item.id || item.name || '').trim();
+            if (!key) return;
+
+            if (customerMap.has(key)) {
+                // Cộng dồn nếu trùng
+                const existing = customerMap.get(key);
+                existing.total += item.total || 0;
+                // Cộng daily
+                headers.forEach(h => {
+                    existing.daily[h] = (existing.daily[h] || 0) + (item.daily?.[h] || 0);
+                });
+                existing._staffList.push(sheetName);
+            } else {
+                const daily = {};
+                headers.forEach(h => { daily[h] = item.daily?.[h] || 0; });
+                customerMap.set(key, {
+                    id: item.id,
+                    name: item.name,
+                    total: item.total || 0,
+                    daily,
+                    _staffList: [sheetName]
+                });
+            }
+        });
+    });
+
+    return {
+        customers: Array.from(customerMap.values()),
+        headers
+    };
 }
 
 // ── Section Switching ──
@@ -215,12 +365,13 @@ function analyzeAndRender() {
     $('highCount').textContent = highCount;
     $('normalCount').textContent = normalCount;
     $('lowCount').textContent = lowCount;
-    $('totalVolume').textContent = totalVolume.toLocaleString();
+    $('totalVolume').textContent = fmt(totalVolume);
     $('highPercent').textContent = Math.round(highCount / total * 100) + '%';
     $('normalPercent').textContent = Math.round(normalCount / total * 100) + '%';
     $('lowPercent').textContent = Math.round(lowCount / total * 100) + '%';
 
     renderLeaderboard();
+    renderStaffRanking();
     renderTable();
     renderAlertSummary(highCount, normalCount, lowCount, totalVolume);
     renderBarChart(labels, totals, bgColors);
@@ -281,7 +432,50 @@ function renderAlertSummary(highCount, normalCount, lowCount, totalVolume) {
     }
 }
 
-// ── Leaderboard ──
+// ── Staff Ranking (hiển thị trên trang Tổng Quan) ──
+function renderStaffRanking() {
+    const container = $('staffRankList');
+    if (!container) return;
+    const sheetNames = Object.keys(allSheetsData);
+    if (sheetNames.length === 0) { container.innerHTML = ''; return; }
+
+    const medals = ['🥇', '🥈', '🥉'];
+    const stats = sheetNames.map(name => {
+        const items = allSheetsData[name].customers || [];
+        const totalVol = items.reduce((s, i) => s + (i.total || 0), 0);
+        return { name, totalVol, count: items.length };
+    }).sort((a, b) => b.totalVol - a.totalVol);
+
+    const maxVol = stats[0]?.totalVol || 1;
+
+    container.innerHTML = stats.map((s, i) => {
+        const pct = Math.round(s.totalVol / maxVol * 100);
+        const barColor = i === 0 ? 'var(--green)' : i === 1 ? 'var(--blue)' : i === 2 ? 'var(--yellow)' : 'var(--text-secondary)';
+        const medal = medals[i] || `<span style="font-weight:700;color:var(--text-secondary)">${i + 1}</span>`;
+        return `
+        <div class="staff-rank-item" data-sheet="${s.name}">
+            <div class="staff-rank-medal">${medal}</div>
+            <div class="staff-rank-info">
+                <div class="staff-rank-name">${s.name}</div>
+                <div class="staff-rank-bar-wrap">
+                    <div class="staff-rank-bar" style="width:${pct}%;background:${barColor};"></div>
+                </div>
+            </div>
+            <div class="staff-rank-vol">${fmt(s.totalVol)}</div>
+        </div>`;
+    }).join('');
+
+    // Click để xem riêng nhân viên đó
+    container.querySelectorAll('.staff-rank-item').forEach(el => {
+        el.addEventListener('click', () => {
+            const sheetName = el.getAttribute('data-sheet');
+            sheetSelect.value = sheetName;
+            loadSheetData(sheetName);
+        });
+    });
+}
+
+// ── Leaderboard (Top 5 KH) ──
 function renderLeaderboard() {
     const lb = $('leaderboard');
     lb.innerHTML = '';
@@ -295,7 +489,7 @@ function renderLeaderboard() {
                 <div class="leader-name">${item.name || item.id}</div>
                 <div class="leader-sub">${item.id}</div>
             </div>
-            <span class="leader-value">${item.total.toLocaleString()}</span>`;
+            <span class="leader-value">${fmt(item.total)}</span>`;
         lb.appendChild(div);
     });
 }
@@ -323,7 +517,7 @@ function renderTable() {
             <td style="font-weight:600;color:var(--text-secondary)">${idx + 1}</td>
             <td><strong>${item.id}</strong></td>
             <td>${item.name}</td>
-            <td style="font-weight:700;">${item.total.toLocaleString()}</td>
+            <td style="font-weight:700;">${fmt(item.total)}</td>
             <td><span class="tag tag-${item._category}">${catLabel}</span></td>
             <td><div class="progress-bar-container"><div class="progress-bar-fill" style="width:${pct}%;background:${barColor};"></div></div></td>`;
         tbody.appendChild(tr);
@@ -444,7 +638,7 @@ function renderTrends() {
     dtbody.innerHTML = '';
     labels.forEach((l, i) => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td style="font-weight:600;">${displayLabels[i]}</td><td style="font-weight:700;">${dailyTotals[l].toLocaleString()}</td><td>${dailyActive[l]}</td>`;
+        tr.innerHTML = `<td style="font-weight:600;">${displayLabels[i]}</td><td style="font-weight:700;">${fmt(dailyTotals[l])}</td><td>${dailyActive[l]}</td>`;
         dtbody.appendChild(tr);
     });
 }
@@ -481,8 +675,8 @@ function renderCompare() {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td style="font-size:18px;text-align:center;">${i < 3 ? medals[i] : (i + 1)}</td>
             <td style="font-weight:700;">${s.name}</td>
-            <td style="font-weight:700;color:var(--primary);">${s.totalVol.toLocaleString()}</td>
-            <td>${s.count}</td><td>${s.avg.toLocaleString()}</td>`;
+            <td style="font-weight:700;color:var(--primary);">${fmt(s.totalVol)}</td>
+            <td>${s.count}</td><td>${fmt(s.avg)}</td>`;
         tbody.appendChild(tr);
     });
 }
@@ -534,7 +728,7 @@ function renderInactive() {
             <td style="font-weight:600;">${idx + 1}</td>
             <td><strong>${item.id}</strong></td>
             <td>${item.name}</td>
-            <td style="font-weight:700;">${item.total.toLocaleString()}</td>
+            <td style="font-weight:700;">${fmt(item.total)}</td>
             <td>${lastDay}</td>
             <td><span class="tag tag-inactive"><i class="fas fa-clock"></i> ${t('status_inactive')}</span></td>`;
         tbody.appendChild(tr);

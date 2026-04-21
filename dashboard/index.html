@@ -22,6 +22,33 @@
         <div class="bg-circle bg-circle-3"></div>
     </div>
 
+    <!-- Machine Selection Screen (Cockpit) -->
+    <div id="machineSelectionScreen" class="machine-splash-screen active">
+        <div class="machine-splash-content">
+            <h1 class="machine-splash-title" data-i18n="machine_select_title">🔥 Vui lòng chọn máy tính rảnh rỗi 🔥</h1>
+            <p class="machine-splash-desc" data-i18n="machine_select_desc">Chọn một máy tính bên dưới để xem báo cáo phân tích chi tiết của máy đó.</p>
+            
+            <div class="machine-splash-grid" id="machineSplashGrid">
+                <!-- JS will inject the 5 machines here -->
+            </div>
+            
+            <div id="machineLoadingSpinner" class="machine-loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+                <div class="splash-text" data-i18n="splash_loading">Đang tải dữ liệu...</div>
+            </div>
+            
+            <div class="machine-lang-switch">
+                <button class="lang-switch" id="machineLangSwitchBtn">
+                    <span id="machineLangFlag" class="lang-flag">🇻🇳</span> 
+                    <span id="machineLangLabel">Việt</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Container -->
+    <div class="app-container" id="mainDashboardContainer" style="display: none;">
+
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -50,6 +77,9 @@
             <a href="#" class="nav-item" data-section="inactive">
                 <i class="fas fa-user-clock"></i><span data-i18n="nav_inactive">停止交易客户</span>
             </a>
+            <a href="#" class="nav-item" data-section="settings">
+                <i class="fas fa-sliders"></i><span data-i18n="nav_settings">设置</span>
+            </a>
         </nav>
         <div class="sidebar-footer">
             <a href="../index.html" class="nav-item">
@@ -73,15 +103,19 @@
                 </div>
 
                 <!-- Language Switch Button -->
-                <button class="lang-switch" id="langSwitch" title="切换语言 / Chuyển ngôn ngữ">
-                    <span class="lang-flag" id="langFlag">🇻🇳</span>
-                    <span class="lang-label" id="langLabel">Việt</span>
+                <button class="lang-switch" id="langSwitchBtn">
+                    <span id="langFlag" class="lang-flag">🇻🇳</span> 
+                    <span id="langLabel">Việt</span>
+                </button>
+
+                <button class="switch-machine-btn" id="switchMachineBtn">
+                    <i class="fas fa-desktop"></i> <span data-i18n="switch_machine">Đổi Máy</span>
                 </button>
 
                 <div class="sheet-selector">
-                    <label class="sheet-label" data-i18n="label_staff">员工：</label>
+                    <label class="sheet-label" data-i18n="label_view">查看：</label>
                     <select id="sheetSelect" disabled>
-                        <option value="" data-i18n="select_staff">选择员工</option>
+                        <option value="__all__" data-i18n="select_all">📊 综合 (全部员工)</option>
                     </select>
                 </div>
             </div>
@@ -166,6 +200,17 @@
                     <div class="glass-card">
                         <h3 class="card-title"><i class="fas fa-chart-pie"></i> <span data-i18n="pie_title">客户分类比例</span></h3>
                         <div class="chart-wrapper" style="height:300px;"><canvas id="pieChart"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- Staff Ranking Mini Card -->
+                <div class="glass-card staff-rank-card" style="margin-top:20px;">
+                    <div class="staff-rank-header">
+                        <h3 class="card-title" style="margin-bottom:0;"><i class="fas fa-ranking-star text-yellow"></i> <span data-i18n="staff_rank_title">员工排行榜</span></h3>
+                        <span class="staff-rank-sub" data-i18n="staff_rank_sub">各员工交易量对比</span>
+                    </div>
+                    <div class="staff-rank-list" id="staffRankList">
+                        <!-- rendered by JS -->
                     </div>
                 </div>
 
@@ -396,3 +441,4 @@
     <script src="script.js"></script>
 </body>
 </html>
+    </div>
