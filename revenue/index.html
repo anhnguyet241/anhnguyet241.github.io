@@ -13,8 +13,25 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="../firebase-config.js"></script>
+    <script src="../auth.js"></script>
 </head>
 <body>
+    <!-- Password Auth Overlay -->
+    <div id="authOverlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0f172a; display: flex; justify-content: center; align-items: center; z-index: 9999; flex-direction: column;">
+        <div style="background: #1e293b; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; max-width: 400px; width: 90%; position: relative;">
+            <div id="authLangBtn" style="position: absolute; top: 15px; right: 20px; font-size: 14px; color: #94a3b8; cursor: pointer; user-select: none;">🇻🇳 Việt</div>
+            <h2 id="authTitle" style="color: white; margin-bottom: 20px; font-size: 24px; margin-top: 10px;">🔒 Yêu Cầu Truy Cập</h2>
+            <p id="authDesc" style="color: #94a3b8; font-size: 14px; margin-bottom: 30px;">Vui lòng nhập mật khẩu để truy cập Hệ thống Phân Tích.</p>
+            <input type="password" id="authPassword" placeholder="Nhập mật khẩu..." style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; margin-bottom: 20px; font-size: 16px; outline: none; box-sizing: border-box;">
+            <p id="authErrorMsg" style="color: #f43f5e; font-size: 14px; margin-bottom: 15px; display: none;">Mật khẩu không chính xác!</p>
+            <div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 20px;">
+                <input type="checkbox" id="authRemember" style="margin-right: 10px; width: 16px; height: 16px; cursor: pointer;">
+                <label for="authRemember" id="authRememberLabel" style="color: #94a3b8; font-size: 14px; cursor: pointer; user-select: none;">Ghi nhớ mật khẩu</label>
+            </div>
+            <button id="authBtn" style="width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s;">Đăng Nhập</button>
+        </div>
+    </div>
+
     <!-- Animated Background -->
     <div class="bg-animation">
         <div class="bg-circle bg-circle-1"></div>
