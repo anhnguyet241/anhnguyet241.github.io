@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>营收分析报告</title>
+    <meta name="description" content="公司营收分析仪表盘 - 营业额与转账额趋势">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="../firebase-config.js"></script>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="bg-circle bg-circle-1"></div>
+        <div class="bg-circle bg-circle-2"></div>
+        <div class="bg-circle bg-circle-3"></div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="app-container" id="appContainer">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-coins"></i>
+                <span data-i18n="appName">营收报告</span>
+            </div>
+            <button class="sidebar-toggle" id="sidebarToggle"><i class="fas fa-bars"></i></button>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-section="overview">
+                <i class="fas fa-th-large"></i><span data-i18n="nav_overview">总览</span>
+            </a>
+            <a href="#" class="nav-item" data-section="compare">
+                <i class="fas fa-code-compare"></i><span data-i18n="nav_compare">月份对比</span>
+            </a>
+            <a href="#" class="nav-item" data-section="trends">
+                <i class="fas fa-chart-line"></i><span data-i18n="nav_trends">趋势图表</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <a href="../index.html" class="nav-item">
+                <i class="fas fa-arrow-left"></i><span data-i18n="nav_back">返回首页</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content" id="mainArea">
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="mobile-toggle" id="mobileToggle"><i class="fas fa-bars"></i></button>
+                <h1 id="pageTitle" data-i18n="title_overview">营收总览</h1>
+            </div>
+            <div class="top-bar-right">
+                <div class="data-info" id="dataInfo">
+                    <i class="fas fa-clock"></i>
+                    <span id="dataInfoText" data-i18n="loading">加载中...</span>
+                </div>
+                <button class="lang-switch" id="langSwitch">
+                    <span id="langFlag" class="lang-flag">🇻🇳</span>
+                    <span id="langLabel" class="lang-label">Việt</span>
+                </button>
+                <div class="sheet-selector">
+                    <label class="sheet-label" data-i18n="label_month">选择月份：</label>
+                    <select id="monthSelect">
+                        <!-- JS will populate -->
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- Loading Screen -->
+        <section class="splash-screen" id="splashScreen">
+            <div class="splash-content">
+                <div class="splash-icon loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <h2 data-i18n="loading_title">正在加载营收数据...</h2>
+                <p data-i18n="loading_sub">系统正在获取分析数据</p>
+            </div>
+        </section>
+
+        <!-- No Data Screen -->
+        <section class="splash-screen" id="noDataScreen" style="display:none;">
+            <div class="splash-content">
+                <div class="splash-icon"><i class="fas fa-inbox"></i></div>
+                <h2 data-i18n="nodata_title">暂无数据</h2>
+                <p data-i18n="nodata_sub">营收数据尚未上传，请联系管理员。</p>
+            </div>
+        </section>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid" id="dashboardGrid" style="display:none;">
+
+            <!-- ═══ SECTION: OVERVIEW ═══ -->
+            <section class="section-block" id="section-overview">
+                <!-- KPI Cards -->
+                <div class="stats-row">
+                    <div class="stat-card glass-card card-sales">
+                        <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="kpi_total_sales">月总营业额</span>
+                            <span class="stat-value" id="kpiTotalSales">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card card-transfer">
+                        <div class="stat-icon"><i class="fas fa-money-bill-transfer"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="kpi_total_transfer">月总转账额</span>
+                            <span class="stat-value" id="kpiTotalTransfer">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card card-avg">
+                        <div class="stat-icon"><i class="fas fa-calculator"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="kpi_avg_daily">日均营业额</span>
+                            <span class="stat-value" id="kpiAvgDaily">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card card-peak">
+                        <div class="stat-icon"><i class="fas fa-fire"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="kpi_peak_days">高峰天数</span>
+                            <span class="stat-value" id="kpiPeakDays">0</span>
+                            <span class="stat-sub" data-i18n="kpi_peak_days_desc">营业额 > 10,000</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row: Daily Chart + Threshold Donut -->
+                <div class="chart-row">
+                    <div class="glass-card chart-card chart-wide">
+                        <h3 class="card-title" data-i18n="daily_chart_title">每日营业额走势</h3>
+                        <p class="card-subtitle" data-i18n="daily_chart_sub">蓝色柱 = 营业额，橙色线 = 转账额</p>
+                        <div class="chart-container"><canvas id="dailyChart"></canvas></div>
+                    </div>
+                    <div class="glass-card chart-card chart-narrow">
+                        <h3 class="card-title" data-i18n="threshold_title">营业额分布</h3>
+                        <div class="chart-container chart-donut"><canvas id="thresholdChart"></canvas></div>
+                        <div id="thresholdInfo" class="threshold-info"></div>
+                    </div>
+                </div>
+
+                <!-- Row: Machine Table + Top 5 -->
+                <div class="chart-row">
+                    <div class="glass-card chart-card chart-wide">
+                        <h3 class="card-title" data-i18n="machine_table_title">各设备营收明细</h3>
+                        <div class="table-scroll">
+                            <table class="data-table" id="machineTable">
+                                <thead id="machineTableHead"></thead>
+                                <tbody id="machineTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="glass-card chart-card chart-narrow">
+                        <h3 class="card-title" data-i18n="top5_title">营业额最高的5天</h3>
+                        <div class="top5-list" id="top5List"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ SECTION: COMPARE ═══ -->
+            <section class="section-block" id="section-compare" style="display:none;">
+                <div class="compare-selectors">
+                    <div class="compare-select-group">
+                        <label data-i18n="compare_month_a">月份 A：</label>
+                        <select id="compareMonthA"></select>
+                    </div>
+                    <div class="compare-vs"><i class="fas fa-arrows-left-right"></i> VS</div>
+                    <div class="compare-select-group">
+                        <label data-i18n="compare_month_b">月份 B：</label>
+                        <select id="compareMonthB"></select>
+                    </div>
+                </div>
+
+                <!-- Compare KPIs -->
+                <div class="stats-row" id="compareKPIs">
+                    <div class="stat-card glass-card card-compare-sales">
+                        <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="compare_sales_change">营业额变化</span>
+                            <span class="stat-value" id="compareSalesChange">—</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card card-compare-transfer">
+                        <div class="stat-icon"><i class="fas fa-money-bill-transfer"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="compare_transfer_change">转账额变化</span>
+                            <span class="stat-value" id="compareTransferChange">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Compare Chart -->
+                <div class="glass-card chart-card">
+                    <h3 class="card-title" data-i18n="compare_chart_title">月份营业额对比走势</h3>
+                    <div class="chart-container"><canvas id="compareChart"></canvas></div>
+                </div>
+
+                <!-- Compare Machine Table -->
+                <div class="glass-card chart-card">
+                    <h3 class="card-title" data-i18n="compare_machine_title">各设备对比</h3>
+                    <div class="table-scroll">
+                        <table class="data-table" id="compareMachineTable">
+                            <thead id="compareMachineHead"></thead>
+                            <tbody id="compareMachineBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ SECTION: TRENDS ═══ -->
+            <section class="section-block" id="section-trends" style="display:none;">
+                <div class="glass-card chart-card">
+                    <h3 class="card-title" data-i18n="trends_monthly_title">月度营收趋势</h3>
+                    <p class="card-subtitle" data-i18n="trends_monthly_sub">所有月份的营业额和转账额趋势</p>
+                    <div class="chart-container"><canvas id="trendsMonthlyChart"></canvas></div>
+                </div>
+                <div class="glass-card chart-card">
+                    <h3 class="card-title" data-i18n="trends_stacked_title">各设备月度贡献</h3>
+                    <p class="card-subtitle" data-i18n="trends_stacked_sub">堆叠图展示每台设备对总营收的贡献</p>
+                    <div class="chart-container"><canvas id="trendsStackedChart"></canvas></div>
+                </div>
+            </section>
+
+        </div><!-- /dashboard-grid -->
+    </main>
+    </div><!-- /app-container -->
+
+    <script src="i18n.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

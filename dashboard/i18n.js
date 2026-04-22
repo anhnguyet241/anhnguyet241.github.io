@@ -368,7 +368,7 @@ function toggleLanguage() {
                 window._uploadedAt.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
         }
     }
-    
+
     // Re-render machine layout and dropdowns (which translates Máy -> 设备)
     if (typeof renderCockpit === 'function') {
         renderCockpit();
@@ -381,7 +381,7 @@ function toggleLanguage() {
 
     // Re-render section-specific content
     const activeSection = document.querySelector('.section-block[style="display: block;"]') ||
-                          document.querySelector('.section-block:not([style*="display:none"])');
+        document.querySelector('.section-block:not([style*="display:none"])');
     if (activeSection) {
         const secId = activeSection.id.replace('section-', '');
         if (secId === 'trends' && typeof renderTrends === 'function') renderTrends();

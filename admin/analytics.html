@@ -389,6 +389,60 @@
         </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- REVENUE UPLOAD SECTION -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="admin-analytics" style="margin-top: 0; padding-top: 0;">
+        <hr style="border: none; border-top: 3px solid #ffd700; margin: 40px 0; border-radius: 3px;">
+        <h1><i class="fas fa-coins" style="color: #ffd700;"></i> Upload Doanh Số Tổng Công Ty</h1>
+        <p class="subtitle">Upload file Excel doanh số tổng hợp (2025河内周期明细表) để hiển thị trên Revenue Dashboard</p>
+
+        <!-- Revenue Status -->
+        <div class="status-panel" style="margin-bottom: 20px;">
+            <div class="status-grid">
+                <div class="status-item">
+                    <div class="status-label">TRẠNG THÁI</div>
+                    <div class="status-value" id="revenueStatusState"><span style="color:#6e7591;">Đang kiểm tra...</span></div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">SỐ THÁNG</div>
+                    <div class="status-value" id="revenueStatusMonths">—</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">NGÀY UPLOAD</div>
+                    <div class="status-value" id="revenueStatusDate">—</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Revenue Upload Card -->
+        <div class="upload-card" id="revenueUploadCard">
+            <i class="fas fa-cloud-upload-alt" style="color: #ffd700;"></i>
+            <h3>Kéo thả hoặc click để chọn file Doanh Số</h3>
+            <p>File: 2025河内周期明细表 doanh so tong cty.xlsx</p>
+            <input type="file" id="revenueFileInput" accept=".xlsx,.xls,.csv" style="display:none;">
+        </div>
+
+        <!-- Revenue Progress -->
+        <div class="progress-container" id="revenueProgressContainer">
+            <strong>Đang xử lý...</strong>
+            <div class="progress-bar-outer">
+                <div class="progress-bar-inner" id="revenueProgressBar"></div>
+            </div>
+            <div class="progress-text" id="revenueProgressText">Đang đọc file...</div>
+        </div>
+
+        <!-- Revenue Actions -->
+        <div class="actions-bar">
+            <button class="btn btn-primary" id="btnRevenueUpload" disabled style="background: linear-gradient(135deg, #ffd700, #ffb300); border-color: #ffd700;">
+                <i class="fas fa-upload"></i> Lưu Doanh Số lên hệ thống
+            </button>
+            <button class="btn btn-danger" id="btnRevenueDelete">
+                <i class="fas fa-trash"></i> Xoá dữ liệu Doanh Số
+            </button>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div class="toast" id="toast"></div>
 

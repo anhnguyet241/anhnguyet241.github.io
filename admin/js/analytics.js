@@ -347,3 +347,312 @@ function showToast(msg, type) {
     toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${msg}`;
     setTimeout(() => toast.classList.remove('show'), 3500);
 }
+
+// ══════════════════════════════════════════════════
+// ══════  REVENUE UPLOAD MODULE  ══════════════════
+// ══════════════════════════════════════════════════
+
+const revenueUploadCard = document.getElementById('revenueUploadCard');
+const revenueFileInput = document.getElementById('revenueFileInput');
+const btnRevenueUpload = document.getElementById('btnRevenueUpload');
+const btnRevenueDelete = document.getElementById('btnRevenueDelete');
+const revenueProgressContainer = document.getElementById('revenueProgressContainer');
+const revenueProgressBar = document.getElementById('revenueProgressBar');
+const revenueProgressText = document.getElementById('revenueProgressText');
+
+let parsedRevenueData = null; // { months: { '2025-01': {...}, ... } }
+
+// ── Init Revenue Status ──
+async function initRevenueStatus() {
+    try {
+        const metaDoc = await db.collection('revenue').doc('meta').get();
+        if (metaDoc.exists) {
+            const data = metaDoc.data();
+            const months = data.months || [];
+            document.getElementById('revenueStatusState').innerHTML = `<span style="color:#00c853;"><i class="fas fa-check-circle"></i> Sẵn sàng</span>`;
+            document.getElementById('revenueStatusMonths').textContent = months.length + ' tháng';
+            if (data.lastUpdated) {
+                const ts = data.lastUpdated.toDate();
+                document.getElementById('revenueStatusDate').textContent = ts.toLocaleDateString('vi-VN') + ' ' + ts.toLocaleTimeString('vi-VN');
+            }
+        } else {
+            document.getElementById('revenueStatusState').innerHTML = `<span style="color:#ff1744;"><i class="fas fa-times-circle"></i> Trống</span>`;
+        }
+    } catch(err) {
+        console.error('Revenue status error:', err);
+    }
+}
+document.addEventListener('DOMContentLoaded', initRevenueStatus);
+
+// ── Revenue Upload Card Events ──
+if (revenueUploadCard) {
+    revenueUploadCard.addEventListener('click', () => revenueFileInput.click());
+    revenueUploadCard.addEventListener('dragover', e => { e.preventDefault(); revenueUploadCard.classList.add('dragover'); });
+    revenueUploadCard.addEventListener('dragleave', () => revenueUploadCard.classList.remove('dragover'));
+    revenueUploadCard.addEventListener('drop', e => {
+        e.preventDefault(); revenueUploadCard.classList.remove('dragover');
+        if (e.dataTransfer.files[0]) parseRevenueFile(e.dataTransfer.files[0]);
+    });
+}
+if (revenueFileInput) {
+    revenueFileInput.addEventListener('change', e => {
+        if (e.target.files[0]) parseRevenueFile(e.target.files[0]);
+    });
+}
+if (btnRevenueUpload) btnRevenueUpload.addEventListener('click', saveRevenueToFirestore);
+if (btnRevenueDelete) btnRevenueDelete.addEventListener('click', deleteRevenueData);
+
+// ── Parse Revenue Excel ──
+function parseRevenueFile(file) {
+    revenueUploadCard.querySelector('h3').textContent = file.name;
+    revenueUploadCard.querySelector('p').textContent = `${(file.size / 1024).toFixed(1)} KB`;
+
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        const data = new Uint8Array(ev.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+
+        // Find the main sheet (每个月刀数和N明细表)
+        const sheetName = wb.SheetNames.find(n => n.includes('明细表')) || wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+        // Parse months from the sheet
+        parsedRevenueData = parseRevenueSheet(rawData);
+        
+        if (parsedRevenueData && Object.keys(parsedRevenueData).length > 0) {
+            btnRevenueUpload.disabled = false;
+            showToast(`Đã đọc ${Object.keys(parsedRevenueData).length} tháng dữ liệu doanh số!`, 'success');
+        } else {
+            showToast('Không tìm thấy dữ liệu doanh số hợp lệ trong file.', 'error');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// ── Parse Revenue Sheet Structure ──
+function parseRevenueSheet(rawData) {
+    const result = {};
+    
+    // Find month boundaries by looking for "每周交易汇报图表 -X月份" markers
+    const monthBoundaries = [];
+    rawData.forEach((row, idx) => {
+        const cell = row[0] ? String(row[0]).trim() : '';
+        if (cell.includes('每周交易汇报图表') && cell.includes('月份')) {
+            // Extract month number
+            const match = cell.match(/(\d+)月份/);
+            if (match) {
+                monthBoundaries.push({ row: idx, month: parseInt(match[1]) });
+            }
+        }
+    });
+
+    // Each month has this structure (relative to boundary):
+    // Row 0: Title (每周交易汇报图表 -X月份)
+    // Row 1: Subtitle (刀数)
+    // Row 2: Date headers (日期, X月1日, X月2日, ...)
+    // Row 3: Weekday row (星期X, ...)
+    // Row 4-9: Machine data (微信001-006)
+    // Row 10: Total (总数)
+    // ... gap ...
+    // Then: 付N总数 section (same structure)
+    // ... gap ...
+    // Then: 每周交易图刀数表汇报 (weekly sales)
+    // Then: 每周交易图付N表汇报 (weekly transfers)
+
+    for (const boundary of monthBoundaries) {
+        const r = boundary.row;
+        const monthNum = String(boundary.month).padStart(2, '0');
+        const monthKey = `2025-${monthNum}`;
+
+        // ── Parse daily sales (刀数) ──
+        const dateHeaderRow = rawData[r + 2] || [];
+        const dateHeaders = [];
+        for (let c = 1; c < dateHeaderRow.length; c++) {
+            const h = dateHeaderRow[c] ? String(dateHeaderRow[c]).trim() : '';
+            if (h && /^\d+月\d+日/.test(h)) dateHeaders.push(h);
+        }
+        const numDays = dateHeaders.length;
+
+        const dailySales = {};
+        const machines = ['微信001', '微信002', '微信003', '微信004', '微信005', '微信006'];
+        
+        for (let i = 0; i < 6; i++) {
+            const row = rawData[r + 4 + i] || [];
+            const machineName = row[0] ? String(row[0]).trim() : machines[i];
+            const values = [];
+            for (let c = 1; c <= numDays; c++) {
+                values.push(parseFloat(row[c]) || 0);
+            }
+            dailySales[machineName] = values;
+        }
+
+        // ── Find 付N总数 section ──
+        let transferStartRow = -1;
+        for (let scan = r + 10; scan < r + 25; scan++) {
+            const cell = rawData[scan]?.[0] ? String(rawData[scan][0]).trim() : '';
+            if (cell === '付N总数') {
+                transferStartRow = scan;
+                break;
+            }
+        }
+
+        const dailyTransfers = {};
+        if (transferStartRow >= 0) {
+            // Date header is at transferStartRow + 1, weekday at +2, machines at +3 to +8
+            for (let i = 0; i < 6; i++) {
+                const row = rawData[transferStartRow + 3 + i] || [];
+                const machineName = row[0] ? String(row[0]).trim() : machines[i];
+                const values = [];
+                for (let c = 1; c <= numDays; c++) {
+                    values.push(parseFloat(row[c]) || 0);
+                }
+                dailyTransfers[machineName] = values;
+            }
+        }
+
+        // ── Find weekly sales (每周交易图刀数表汇报) ──
+        let weeklySalesRow = -1;
+        for (let scan = r + 15; scan < r + 35; scan++) {
+            const cell = rawData[scan]?.[0] ? String(rawData[scan][0]).trim() : '';
+            if (cell === '每周交易图刀数表汇报') {
+                weeklySalesRow = scan;
+                break;
+            }
+        }
+
+        const weeklySales = {};
+        const weekHeaders = [];
+        if (weeklySalesRow >= 0) {
+            const whRow = rawData[weeklySalesRow + 1] || [];
+            for (let c = 1; c < whRow.length; c++) {
+                const h = whRow[c] ? String(whRow[c]).trim() : '';
+                if (h && h.includes('周')) weekHeaders.push(h);
+            }
+            for (let i = 0; i < 6; i++) {
+                const row = rawData[weeklySalesRow + 2 + i] || [];
+                const machineName = row[0] ? String(row[0]).trim() : machines[i];
+                const values = [];
+                for (let c = 1; c <= weekHeaders.length; c++) {
+                    values.push(parseFloat(row[c]) || 0);
+                }
+                weeklySales[machineName] = values;
+            }
+        }
+
+        // ── Find weekly transfers (每周交易图付N表汇报) ──
+        let weeklyTransfersRow = -1;
+        for (let scan = (weeklySalesRow > 0 ? weeklySalesRow + 8 : r + 30); scan < r + 50; scan++) {
+            const cell = rawData[scan]?.[0] ? String(rawData[scan][0]).trim() : '';
+            if (cell === '每周交易图付N表汇报') {
+                weeklyTransfersRow = scan;
+                break;
+            }
+        }
+
+        const weeklyTransfers = {};
+        if (weeklyTransfersRow >= 0) {
+            for (let i = 0; i < 6; i++) {
+                const row = rawData[weeklyTransfersRow + 1 + i] || [];
+                const machineName = row[0] ? String(row[0]).trim() : machines[i];
+                const values = [];
+                for (let c = 1; c <= weekHeaders.length; c++) {
+                    values.push(parseFloat(row[c]) || 0);
+                }
+                weeklyTransfers[machineName] = values;
+            }
+        }
+
+        // Check if this month has real data (not all zeros)
+        const totalSales = Object.values(dailySales).reduce((sum, arr) => sum + arr.reduce((s, v) => s + v, 0), 0);
+        if (totalSales > 0) {
+            result[monthKey] = {
+                dateHeaders,
+                weekHeaders,
+                dailySales,
+                dailyTransfers,
+                weeklySales,
+                weeklyTransfers,
+            };
+        }
+    }
+
+    return result;
+}
+
+// ── Save Revenue to Firestore ──
+async function saveRevenueToFirestore() {
+    if (!parsedRevenueData || Object.keys(parsedRevenueData).length === 0) {
+        showToast('Chưa có dữ liệu để lưu!', 'error');
+        return;
+    }
+
+    try {
+        revenueProgressContainer.classList.add('active');
+        revenueProgressBar.style.width = '0%';
+        revenueProgressText.textContent = 'Đang lưu dữ liệu doanh số...';
+        btnRevenueUpload.disabled = true;
+
+        const monthKeys = Object.keys(parsedRevenueData).sort();
+        const total = monthKeys.length + 1;
+        let done = 0;
+
+        // Save each month as a separate document
+        for (const key of monthKeys) {
+            await db.collection('revenue').doc(key).set(parsedRevenueData[key]);
+            done++;
+            revenueProgressBar.style.width = ((done / total) * 100) + '%';
+            revenueProgressText.textContent = `Đã lưu ${done}/${monthKeys.length} tháng...`;
+        }
+
+        // Save meta document
+        await db.collection('revenue').doc('meta').set({
+            months: monthKeys,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+            fileName: revenueUploadCard.querySelector('h3').textContent,
+        });
+        done++;
+        revenueProgressBar.style.width = '100%';
+        revenueProgressText.textContent = 'Hoàn tất! ✅';
+
+        showToast(`Đã lưu ${monthKeys.length} tháng doanh số thành công!`, 'success');
+        setTimeout(() => {
+            revenueProgressContainer.classList.remove('active');
+            btnRevenueUpload.disabled = false;
+            initRevenueStatus();
+        }, 1500);
+
+    } catch (err) {
+        console.error('Revenue save error:', err);
+        showToast('Lỗi khi lưu doanh số: ' + err.message, 'error');
+        revenueProgressContainer.classList.remove('active');
+        btnRevenueUpload.disabled = false;
+    }
+}
+
+// ── Delete Revenue Data ──
+async function deleteRevenueData() {
+    if (!confirm('Bạn có chắc muốn xoá toàn bộ dữ liệu doanh số tổng?')) return;
+    try {
+        revenueProgressContainer.classList.add('active');
+        revenueProgressText.textContent = 'Đang xoá dữ liệu doanh số...';
+
+        const snapshot = await db.collection('revenue').get();
+        const batch = db.batch();
+        snapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+
+        revenueProgressBar.style.width = '100%';
+        revenueProgressText.textContent = 'Đã xoá thành công!';
+        showToast('Đã xoá toàn bộ dữ liệu doanh số!', 'success');
+
+        setTimeout(() => {
+            revenueProgressContainer.classList.remove('active');
+            initRevenueStatus();
+        }, 1500);
+    } catch (err) {
+        console.error(err);
+        showToast('Lỗi khi xoá: ' + err.message, 'error');
+        revenueProgressContainer.classList.remove('active');
+    }
+}
