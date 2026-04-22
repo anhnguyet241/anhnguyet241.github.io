@@ -288,3 +288,13 @@ body {
 @media (max-width: 480px) {
     .stats-row { grid-template-columns: 1fr; }
 }
+
+/* Unified Sidebar Titles */
+.nav-section-title {
+    padding: 15px 20px 5px 20px;
+    font-size: 0.75rem;
+    color: #a0aec0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+}

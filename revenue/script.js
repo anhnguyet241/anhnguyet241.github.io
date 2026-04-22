@@ -48,7 +48,21 @@ function setupNavigation() {
             // Render section-specific content
             if (sec === 'compare') renderCompare();
             if (sec === 'trends') renderTrends();
+
+            window.history.pushState(null, null, '#' + sec);
         });
+    });
+
+    window.addEventListener('popstate', () => {
+        const hash = window.location.hash.substring(1);
+        const validSections = ['overview', 'compare', 'trends'];
+        if (validSections.includes(hash)) {
+            const targetNav = document.querySelector(`.nav-item[data-section="${hash}"]`);
+            if (targetNav) targetNav.click();
+        } else if (!hash) {
+            const defaultNav = document.querySelector(`.nav-item[data-section="overview"]`);
+            if (defaultNav) defaultNav.click();
+        }
     });
 
     // Sidebar toggle

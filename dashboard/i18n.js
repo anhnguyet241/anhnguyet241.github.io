@@ -15,6 +15,12 @@ const TRANSLATIONS = {
         nav_settings: '设置',
         nav_back: '返回',
 
+        nav_grp_customer: '👥 客户分析',
+        nav_grp_revenue: '💰 营收分析',
+        nav_rev_overview: '营收总览',
+        nav_rev_compare: '月份对比',
+        nav_rev_trends: '趋势图表',
+
         switch_machine: '切换设备',
         machine_select_title: '🔥 请选择设备空闲 🔥',
         machine_select_desc: '选择下方的一台设备以查看该设备的详细分析报告。',
@@ -161,6 +167,12 @@ const TRANSLATIONS = {
         nav_settings: 'Cài Đặt',
         nav_back: 'Quay Lại',
 
+        nav_grp_customer: '👥 Phân Tích Khách Hàng',
+        nav_grp_revenue: '💰 Phân Tích Doanh Số',
+        nav_rev_overview: 'Doanh Số Tổng',
+        nav_rev_compare: 'So Sánh Tháng',
+        nav_rev_trends: 'Biểu Đồ Xu Hướng',
+
         switch_machine: 'Đổi Máy',
         machine_select_title: '🔥 Vui lòng chọn máy tính rảnh rỗi 🔥',
         machine_select_desc: 'Chọn một máy tính bên dưới để xem báo cáo phân tích chi tiết của máy đó.',
@@ -298,7 +310,7 @@ const TRANSLATIONS = {
 };
 
 // ─── Current language state ───
-let currentLang = localStorage.getItem('dashboardLang') || 'zh';
+let currentLang = localStorage.getItem('appLang') || 'zh';
 
 // ─── Get translation ───
 function t(key, vars = {}) {
@@ -354,7 +366,7 @@ function applyTranslations() {
 // ─── Toggle language ───
 function toggleLanguage() {
     currentLang = currentLang === 'zh' ? 'vi' : 'zh';
-    localStorage.setItem('dashboardLang', currentLang);
+    localStorage.setItem('appLang', currentLang);
     applyTranslations();
 
     // Re-render dynamic content if dashboard is loaded

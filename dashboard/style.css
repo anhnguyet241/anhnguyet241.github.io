@@ -1260,3 +1260,13 @@ table tbody tr:hover { background: rgba(0,102,255,0.03); }
     position: absolute;
     top: 20px; right: 20px;
 }
+
+/* Unified Sidebar Titles */
+.nav-section-title {
+    padding: 15px 20px 5px 20px;
+    font-size: 0.75rem;
+    color: #a0aec0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+}

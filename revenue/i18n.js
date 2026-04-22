@@ -8,9 +8,18 @@ const TRANSLATIONS = {
     zh: {
         appName: '营收报告',
         nav_overview: '总览',
-        nav_compare: '月份对比',
+        nav_charts: '图表',
+        nav_table: '客户列表',
+        nav_compare: '月份对比', // Both uses share compare so maybe conflict? No, nav_rev_compare is used for revenue now
+        nav_inactive: '停止交易客户',
         nav_trends: '趋势图表',
         nav_back: '返回首页',
+
+        nav_grp_customer: '👥 客户分析',
+        nav_grp_revenue: '💰 营收分析',
+        nav_rev_overview: '营收总览',
+        nav_rev_compare: '月份对比',
+        nav_rev_trends: '趋势图表',
 
         title_overview: '营收总览',
         title_compare: '月份对比分析',
@@ -100,9 +109,18 @@ const TRANSLATIONS = {
     vi: {
         appName: 'Báo Cáo Doanh Thu',
         nav_overview: 'Tổng Quan',
-        nav_compare: 'So Sánh Tháng',
+        nav_charts: 'Biểu Đồ',
+        nav_table: 'Danh Sách KH',
+        nav_compare: 'So Sánh',
+        nav_inactive: 'KH Ngưng GD',
         nav_trends: 'Biểu Đồ Xu Hướng',
         nav_back: 'Về Trang Chủ',
+
+        nav_grp_customer: '👥 Phân Tích Khách Hàng',
+        nav_grp_revenue: '💰 Phân Tích Doanh Số',
+        nav_rev_overview: 'Doanh Số Tổng',
+        nav_rev_compare: 'So Sánh Tháng',
+        nav_rev_trends: 'Biểu Đồ Xu Hướng',
 
         title_overview: 'Tổng Quan Doanh Thu',
         title_compare: 'So Sánh Doanh Thu Giữa Các Tháng',
@@ -191,7 +209,7 @@ const TRANSLATIONS = {
 };
 
 // ─── Current language state ───
-let currentLang = localStorage.getItem('revenueLang') || 'zh';
+let currentLang = localStorage.getItem('appLang') || 'zh';
 
 // ─── Get translation ───
 function t(key, vars = {}) {
@@ -231,7 +249,7 @@ function applyTranslations() {
 // ─── Toggle language ───
 function toggleLanguage() {
     currentLang = currentLang === 'zh' ? 'vi' : 'zh';
-    localStorage.setItem('revenueLang', currentLang);
+    localStorage.setItem('appLang', currentLang);
     applyTranslations();
     if (typeof reRenderAll === 'function') reRenderAll();
 }

@@ -22,29 +22,6 @@
         <div class="bg-circle bg-circle-3"></div>
     </div>
 
-    <!-- Machine Selection Screen (Cockpit) -->
-    <div id="machineSelectionScreen" class="machine-splash-screen active">
-        <div class="machine-splash-content">
-            <h1 class="machine-splash-title" data-i18n="machine_select_title">🔥 Vui lòng chọn máy tính rảnh rỗi 🔥</h1>
-            <p class="machine-splash-desc" data-i18n="machine_select_desc">Chọn một máy tính bên dưới để xem báo cáo phân tích chi tiết của máy đó.</p>
-            
-            <div class="machine-splash-grid" id="machineSplashGrid">
-                <!-- JS will inject the 5 machines here -->
-            </div>
-            
-            <div id="machineLoadingSpinner" class="machine-loading-spinner" style="display: none;">
-                <div class="spinner"></div>
-                <div class="splash-text" data-i18n="splash_loading">Đang tải dữ liệu...</div>
-            </div>
-            
-            <div class="machine-lang-switch">
-                <button class="lang-switch" id="machineLangSwitchBtn">
-                    <span id="machineLangFlag" class="lang-flag">🇻🇳</span> 
-                    <span id="machineLangLabel">Việt</span>
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- Main Dashboard Container -->
     <div class="app-container" id="mainDashboardContainer" style="display: none;">
@@ -59,26 +36,39 @@
             <button class="sidebar-toggle" id="sidebarToggle"><i class="fas fa-bars"></i></button>
         </div>
         <nav class="sidebar-nav">
-            <a href="#" class="nav-item active" data-section="overview">
+            <!-- SECTION 1: CUSTOMERS -->
+            <div class="nav-section-title" data-i18n="nav_grp_customer">👥 客户分析</div>
+            <a href="#overview" class="nav-item active" data-section="overview">
                 <i class="fas fa-th-large"></i><span data-i18n="nav_overview">总览</span>
             </a>
-            <a href="#" class="nav-item" data-section="charts">
+            <a href="#charts" class="nav-item" data-section="charts">
                 <i class="fas fa-chart-bar"></i><span data-i18n="nav_charts">图表</span>
             </a>
-            <a href="#" class="nav-item" data-section="table">
+            <a href="#table" class="nav-item" data-section="table">
                 <i class="fas fa-table"></i><span data-i18n="nav_table">客户列表</span>
             </a>
-            <a href="#" class="nav-item" data-section="trends">
+            <a href="#trends" class="nav-item" data-section="trends">
                 <i class="fas fa-chart-area"></i><span data-i18n="nav_trends">每日趋势</span>
             </a>
-            <a href="#" class="nav-item" data-section="compare">
+            <a href="#compare" class="nav-item" data-section="compare">
                 <i class="fas fa-code-compare"></i><span data-i18n="nav_compare">员工对比</span>
             </a>
-            <a href="#" class="nav-item" data-section="inactive">
+            <a href="#inactive" class="nav-item" data-section="inactive">
                 <i class="fas fa-user-clock"></i><span data-i18n="nav_inactive">停止交易客户</span>
             </a>
-            <a href="#" class="nav-item" data-section="settings">
-                <i class="fas fa-sliders"></i><span data-i18n="nav_settings">设置</span>
+            
+            <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 10px 20px;"></div>
+
+            <!-- SECTION 2: REVENUE -->
+            <div class="nav-section-title" data-i18n="nav_grp_revenue">💰 营收分析</div>
+            <a href="../revenue/index.html#overview" class="nav-item">
+                <i class="fas fa-wallet"></i><span data-i18n="nav_rev_overview">营收总览</span>
+            </a>
+            <a href="../revenue/index.html#compare" class="nav-item">
+                <i class="fas fa-scale-balanced"></i><span data-i18n="nav_rev_compare">月份对比</span>
+            </a>
+            <a href="../revenue/index.html#trends" class="nav-item">
+                <i class="fas fa-arrow-trend-up"></i><span data-i18n="nav_rev_trends">趋势图表</span>
             </a>
         </nav>
         <div class="sidebar-footer">
