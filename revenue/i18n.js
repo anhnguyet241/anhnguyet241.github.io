@@ -29,6 +29,9 @@ const TRANSLATIONS = {
         month_mar: '3月',
         month_apr: '4月',
 
+        label_machine: '设备：',
+        machine_all: '📊 综合所有设备',
+
         // KPI Cards
         kpi_total_sales: '月总营业额',
         kpi_total_transfer: '月总转账额',
@@ -117,6 +120,9 @@ const TRANSLATIONS = {
         month_feb: 'Tháng 2',
         month_mar: 'Tháng 3',
         month_apr: 'Tháng 4',
+
+        label_machine: 'Máy:',
+        machine_all: '📊 Tổng hợp tất cả máy',
 
         // KPI Cards
         kpi_total_sales: 'Tổng Doanh Số Tháng',

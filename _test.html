@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <input type="file" id="upload" />
+    <pre id="out"></pre>
+    <script>
+        document.getElementById('upload').addEventListener('change', function(e) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const data = new Uint8Array(evt.target.result);
+                const wb = XLSX.read(data, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                
+                // EXACT same call as admin/js/analytics.js
+                const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                document.getElementById('out').textContent = "Row0: " + JSON.stringify(rawData[0]) + "\nRow1: " + JSON.stringify(rawData[1]);
+            };
+            reader.readAsArrayBuffer(e.target.files[0]);
+        });
+    </script>
+</body>
+</html>

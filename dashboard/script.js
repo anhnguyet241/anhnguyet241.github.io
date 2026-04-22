@@ -251,21 +251,23 @@ async function loadMachine(machineId, machineData) {
 }
 
 function loadSheetData(sheetName) {
+    // Lấy headers chung từ systemMeta của máy hiện tại.
+    const metaMachineKey = `machine_${window._currentMachineId}`;
+    const machineMeta = systemMeta?.machines?.[metaMachineKey] || systemMeta?.machines?.[window._currentMachineId];
+    const rawHeaders = machineMeta?.headers || [];
+    dailyHeaders = rawHeaders.filter(h => {
+        const s = String(h).trim();
+        return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
+    });
+
     if (sheetName === '__all__') {
         // Gộp tất cả sheets
         const merged = mergeAllSheets();
         currentSheetData = merged.customers;
-        dailyHeaders = merged.headers;
     } else {
         const sheet = allSheetsData[sheetName];
         if (!sheet) return;
         currentSheetData = sheet.customers || [];
-        // Lọc bỏ rác ở dữ liệu cũ (các cột không phải ngày tháng như 交易频率)
-        const rawHeaders = sheet.headers || [];
-        dailyHeaders = rawHeaders.filter(h => {
-            const s = String(h).trim();
-            return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
-        });
     }
     analyzeAndRender();
 }
@@ -274,15 +276,7 @@ function loadSheetData(sheetName) {
 // Nếu cùng KH (cùng ID) xuất hiện ở nhiều NV → cộng dồn
 function mergeAllSheets() {
     const sheetNames = Object.keys(allSheetsData);
-    if (sheetNames.length === 0) return { customers: [], headers: [] };
-
-    // Lấy headers từ sheet đầu
-    const firstSheet = allSheetsData[sheetNames[0]];
-    const rawHeaders = firstSheet.headers || [];
-    const headers = rawHeaders.filter(h => {
-        const s = String(h).trim();
-        return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
-    });
+    if (sheetNames.length === 0) return { customers: [] };
 
     // Map: id → {id, name, total, daily, _staff: [...]}
     const customerMap = new Map();
@@ -300,13 +294,13 @@ function mergeAllSheets() {
                 const existing = customerMap.get(key);
                 existing.total += item.total || 0;
                 // Cộng daily
-                headers.forEach(h => {
+                dailyHeaders.forEach(h => {
                     existing.daily[h] = (existing.daily[h] || 0) + (item.daily?.[h] || 0);
                 });
                 existing._staffList.push(sheetName);
             } else {
                 const daily = {};
-                headers.forEach(h => { daily[h] = item.daily?.[h] || 0; });
+                dailyHeaders.forEach(h => { daily[h] = item.daily?.[h] || 0; });
                 customerMap.set(key, {
                     id: item.id,
                     name: item.name,
@@ -319,8 +313,7 @@ function mergeAllSheets() {
     });
 
     return {
-        customers: Array.from(customerMap.values()),
-        headers
+        customers: Array.from(customerMap.values())
     };
 }
 
@@ -716,6 +709,8 @@ function renderCompare() {
 // ── Inactive ──
 function renderInactive() {
     const nDays = parseInt(inactiveDaysInput.value);
+    console.log('[INACTIVE DEBUG] dailyHeaders.length=', dailyHeaders.length, 'currentSheetData.length=', currentSheetData.length, 'nDays=', nDays);
+    if (dailyHeaders.length > 0) console.log('[INACTIVE DEBUG] first3=', dailyHeaders.slice(0,3), 'last3=', dailyHeaders.slice(-3));
     if (dailyHeaders.length === 0 || currentSheetData.length === 0) return;
 
     const lastNHeaders = dailyHeaders.slice(-nDays);

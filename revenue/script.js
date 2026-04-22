@@ -10,6 +10,7 @@ const $ = id => document.getElementById(id);
 let allMonthsData = {};   // { '2025-01': { dailySales, dailyTransfers, weeklySales, weeklyTransfers, dateHeaders, weekHeaders }, ... }
 let availableMonths = [];
 let currentMonth = null;
+let currentMachine = '__all__'; // '__all__' or '微信001' etc.
 
 // Chart instances
 let dailyChartInst = null;
@@ -62,6 +63,19 @@ function setupNavigation() {
     $('monthSelect')?.addEventListener('change', e => {
         currentMonth = e.target.value;
         renderOverview();
+    });
+
+    // Machine select
+    $('machineSelect')?.addEventListener('change', e => {
+        currentMachine = e.target.value;
+        renderOverview();
+        // Also update compare and trends if they are active
+        const activeNav = document.querySelector('.nav-item.active[data-section]');
+        if (activeNav) {
+            const sec = activeNav.dataset.section;
+            if (sec === 'compare') renderCompare();
+            if (sec === 'trends') renderTrends();
+        }
     });
 }
 
@@ -179,6 +193,9 @@ function renderOverview() {
 
     const { dailySales, dailyTransfers, weeklySales, weeklyTransfers, dateHeaders, weekHeaders } = data;
 
+    // Determine which machines to include
+    const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
+
     // ── Calculate totals ──
     let totalSales = 0, totalTransfer = 0;
     const dailyTotalSales = [];
@@ -188,7 +205,7 @@ function renderOverview() {
 
     for (let d = 0; d < numDays; d++) {
         let dayS = 0, dayT = 0;
-        MACHINE_NAMES.forEach(m => {
+        activeMachines.forEach(m => {
             dayS += (dailySales?.[m]?.[d] || 0);
             dayT += (dailyTransfers?.[m]?.[d] || 0);
         });
@@ -199,22 +216,40 @@ function renderOverview() {
     }
 
     const avgDaily = numDays > 0 ? totalSales / numDays : 0;
-    const peakDays = dailyTotalSales.filter(v => v > 10000).length;
+
+    // ── Peak days: calculated PER MACHINE ──
+    const perMachinePeaks = {};
+    activeMachines.forEach(m => {
+        let count = 0;
+        for (let d = 0; d < numDays; d++) {
+            if ((dailySales?.[m]?.[d] || 0) > 10000) count++;
+        }
+        perMachinePeaks[m] = count;
+    });
+
+    // KPI: if single machine show its count, if all show average
+    if (activeMachines.length === 1) {
+        const pk = perMachinePeaks[activeMachines[0]];
+        $('kpiPeakDays').textContent = pk + ' / ' + numDays;
+    } else {
+        const totalPk = Object.values(perMachinePeaks).reduce((s, v) => s + v, 0);
+        const avgPk = (totalPk / activeMachines.length).toFixed(0);
+        $('kpiPeakDays').textContent = `⌀ ${avgPk} / ${numDays}`;
+    }
 
     // ── KPI Cards ──
     $('kpiTotalSales').textContent = fmt(totalSales);
     $('kpiTotalTransfer').textContent = fmt(totalTransfer);
     $('kpiAvgDaily').textContent = fmt(avgDaily);
-    $('kpiPeakDays').textContent = peakDays + ' / ' + numDays;
 
     // ── Daily Chart ──
     renderDailyChart(dateHeaders, dailyTotalSales, dailyTotalTransfers);
 
-    // ── Threshold Donut ──
-    renderThresholdChart(peakDays, numDays - peakDays, numDays);
+    // ── Threshold Chart (per-machine) ──
+    renderThresholdChart(perMachinePeaks, numDays, activeMachines);
 
     // ── Machine Table ──
-    renderMachineTable(data);
+    renderMachineTable(data, activeMachines);
 
     // ── Top 5 Days ──
     renderTop5(dateHeaders, dailyTotalSales, totalSales);
@@ -271,45 +306,94 @@ function renderDailyChart(dates, sales, transfers) {
     });
 }
 
-function renderThresholdChart(above, below, total) {
+function renderThresholdChart(perMachinePeaks, numDays, activeMachines) {
     if (thresholdChartInst) thresholdChartInst.destroy();
-    thresholdChartInst = new Chart($('thresholdChart'), {
-        type: 'doughnut',
-        data: {
-            labels: [t('threshold_above'), t('threshold_below')],
-            datasets: [{
-                data: [above, below],
-                backgroundColor: ['#00c853', '#ff1744'],
-                borderWidth: 2, borderColor: '#fff',
-            }]
-        },
-        options: {
-            responsive: true,
-            cutout: '65%',
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: { label: ctx => ctx.label + ': ' + ctx.raw + ' ' + t('days_label') }
+    const info = $('thresholdInfo');
+
+    if (activeMachines.length === 1) {
+        // Single machine: donut chart
+        const above = perMachinePeaks[activeMachines[0]];
+        const below = numDays - above;
+        thresholdChartInst = new Chart($('thresholdChart'), {
+            type: 'doughnut',
+            data: {
+                labels: [t('threshold_above'), t('threshold_below')],
+                datasets: [{
+                    data: [above, below],
+                    backgroundColor: ['#00c853', '#ff1744'],
+                    borderWidth: 2, borderColor: '#fff',
+                }]
+            },
+            options: {
+                responsive: true,
+                cutout: '65%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: { label: ctx => ctx.label + ': ' + ctx.raw + ' ' + t('days_label') }
+                    }
                 }
             }
-        }
-    });
+        });
+        info.innerHTML = `
+            <div class="th-row"><span class="th-label" style="color:#00c853;">● ${t('threshold_above')}</span><span class="th-val">${above} ${t('days_label')} (${numDays > 0 ? fmtPct(above/numDays) : '0%'})</span></div>
+            <div class="th-row"><span class="th-label" style="color:#ff1744;">● ${t('threshold_below')}</span><span class="th-val">${numDays - above} ${t('days_label')} (${numDays > 0 ? fmtPct((numDays - above)/numDays) : '0%'})</span></div>
+        `;
+    } else {
+        // All machines: horizontal bar chart showing each machine's peak count
+        const labels = activeMachines.map(m => m.replace('微信', ''));
+        const dataVals = activeMachines.map(m => perMachinePeaks[m]);
+        const colors = activeMachines.map(m => {
+            const idx = MACHINE_NAMES.indexOf(m);
+            return MACHINE_COLORS[idx >= 0 ? idx : 0];
+        });
 
-    // Info text
-    const info = $('thresholdInfo');
-    info.innerHTML = `
-        <div class="th-row"><span class="th-label" style="color:#00c853;">● ${t('threshold_above')}</span><span class="th-val">${above} ${t('days_label')} (${total > 0 ? fmtPct(above/total) : '0%'})</span></div>
-        <div class="th-row"><span class="th-label" style="color:#ff1744;">● ${t('threshold_below')}</span><span class="th-val">${below} ${t('days_label')} (${total > 0 ? fmtPct(below/total) : '0%'})</span></div>
-    `;
+        thresholdChartInst = new Chart($('thresholdChart'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: t('threshold_above'),
+                    data: dataVals,
+                    backgroundColor: colors.map(c => c + 'cc'),
+                    borderColor: colors,
+                    borderWidth: 1,
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: { label: ctx => ctx.raw + ' / ' + numDays + ' ' + t('days_label') + ' (' + fmtPct(ctx.raw / numDays) + ')' }
+                    }
+                },
+                scales: {
+                    x: { beginAtZero: true, max: numDays, grid: { display: false }, ticks: { stepSize: 5 } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Info: summary text
+        const totalPk = Object.values(perMachinePeaks).reduce((s, v) => s + v, 0);
+        const avgPk = (totalPk / activeMachines.length).toFixed(1);
+        info.innerHTML = `
+            <div class="th-row"><span class="th-label">⌀ ${currentLang === 'zh' ? '平均' : 'TB'}</span><span class="th-val">${avgPk} / ${numDays} ${t('days_label')}</span></div>
+        `;
+    }
 }
-
-function renderMachineTable(data) {
+function renderMachineTable(data, activeMachines) {
     const { weeklySales, weeklyTransfers, weekHeaders } = data;
     const numWeeks = weekHeaders ? weekHeaders.length : 0;
+    const displayMachines = activeMachines || MACHINE_NAMES;
+    const isSingle = displayMachines.length === 1;
 
     // Header
     let headHTML = '<tr>';
-    headHTML += `<th>${t('col_machine')}</th>`;
+    headHTML += `<th>${isSingle ? t('col_sales') + ' / ' + t('col_transfer') : t('col_machine')}</th>`;
     for (let w = 0; w < numWeeks; w++) {
         headHTML += `<th>${t('col_week', { n: w + 1 })}</th>`;
     }
@@ -317,31 +401,63 @@ function renderMachineTable(data) {
     headHTML += '</tr>';
     $('machineTableHead').innerHTML = headHTML;
 
-    // Body
     let bodyHTML = '';
-    let weekTotals = new Array(numWeeks).fill(0);
-    let grandTotal = 0;
 
-    MACHINE_NAMES.forEach((m, idx) => {
+    if (isSingle) {
+        // Single machine: show Sales row + Transfer row
+        const m = displayMachines[0];
+        const colorIdx = MACHINE_NAMES.indexOf(m);
+        const color = MACHINE_COLORS[colorIdx >= 0 ? colorIdx : 0];
+
+        // Sales row
         const sales = weeklySales?.[m] || [];
-        let rowTotal = 0;
-        bodyHTML += `<tr><td><strong style="color:${MACHINE_COLORS[idx]}">${m}</strong></td>`;
+        let salesTotal = 0;
+        bodyHTML += `<tr><td><strong style="color:${color}"><i class="fas fa-chart-line"></i> ${t('col_sales')}</strong></td>`;
         for (let w = 0; w < numWeeks; w++) {
             const v = sales[w] || 0;
-            rowTotal += v;
-            weekTotals[w] += v;
+            salesTotal += v;
             bodyHTML += `<td>${fmt(v)}</td>`;
         }
-        grandTotal += rowTotal;
-        bodyHTML += `<td><strong>${fmt(rowTotal)}</strong></td></tr>`;
-    });
+        bodyHTML += `<td><strong>${fmt(salesTotal)}</strong></td></tr>`;
 
-    // Total row
-    bodyHTML += `<tr><td><strong>${t('row_total')}</strong></td>`;
-    for (let w = 0; w < numWeeks; w++) {
-        bodyHTML += `<td><strong>${fmt(weekTotals[w])}</strong></td>`;
+        // Transfer row
+        const transfers = weeklyTransfers?.[m] || [];
+        let transferTotal = 0;
+        bodyHTML += `<tr><td><strong style="color:#ff8c00"><i class="fas fa-money-bill-transfer"></i> ${t('col_transfer')}</strong></td>`;
+        for (let w = 0; w < numWeeks; w++) {
+            const v = transfers[w] || 0;
+            transferTotal += v;
+            bodyHTML += `<td>${fmt(v)}</td>`;
+        }
+        bodyHTML += `<td><strong>${fmt(transferTotal)}</strong></td></tr>`;
+
+    } else {
+        // Multiple machines: one row per machine (sales only), with total
+        let weekTotals = new Array(numWeeks).fill(0);
+        let grandTotal = 0;
+
+        displayMachines.forEach((m, idx) => {
+            const colorIdx = MACHINE_NAMES.indexOf(m);
+            const sales = weeklySales?.[m] || [];
+            let rowTotal = 0;
+            bodyHTML += `<tr><td><strong style="color:${MACHINE_COLORS[colorIdx >= 0 ? colorIdx : idx]}">${m}</strong></td>`;
+            for (let w = 0; w < numWeeks; w++) {
+                const v = sales[w] || 0;
+                rowTotal += v;
+                weekTotals[w] += v;
+                bodyHTML += `<td>${fmt(v)}</td>`;
+            }
+            grandTotal += rowTotal;
+            bodyHTML += `<td><strong>${fmt(rowTotal)}</strong></td></tr>`;
+        });
+
+        // Total row
+        bodyHTML += `<tr><td><strong>${t('row_total')}</strong></td>`;
+        for (let w = 0; w < numWeeks; w++) {
+            bodyHTML += `<td><strong>${fmt(weekTotals[w])}</strong></td>`;
+        }
+        bodyHTML += `<td><strong>${fmt(grandTotal)}</strong></td></tr>`;
     }
-    bodyHTML += `<td><strong>${fmt(grandTotal)}</strong></td></tr>`;
 
     $('machineTableBody').innerHTML = bodyHTML;
 }
@@ -394,18 +510,19 @@ function renderCompare() {
 $('compareMonthA')?.addEventListener('change', renderCompare);
 $('compareMonthB')?.addEventListener('change', renderCompare);
 
-function computeMonthTotals(data) {
+function computeMonthTotals(data, machineFilter) {
+    const activeMachines = machineFilter || (currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine]);
     let totalSales = 0, totalTransfer = 0;
     const numDays = data.dateHeaders ? data.dateHeaders.length : 0;
     for (let d = 0; d < numDays; d++) {
-        MACHINE_NAMES.forEach(m => {
+        activeMachines.forEach(m => {
             totalSales += (data.dailySales?.[m]?.[d] || 0);
             totalTransfer += (data.dailyTransfers?.[m]?.[d] || 0);
         });
     }
 
     const machineSales = {};
-    MACHINE_NAMES.forEach(m => {
+    activeMachines.forEach(m => {
         let s = 0;
         for (let d = 0; d < numDays; d++) s += (data.dailySales?.[m]?.[d] || 0);
         machineSales[m] = s;
@@ -437,10 +554,11 @@ function renderCompareChart(dataA, dataB, monthKeyA, monthKeyB) {
     );
     const labels = Array.from({ length: maxDays }, (_, i) => i + 1);
 
+    const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
     const salesA = [], salesB = [];
     for (let d = 0; d < maxDays; d++) {
         let sA = 0, sB = 0;
-        MACHINE_NAMES.forEach(m => {
+        activeMachines.forEach(m => {
             sA += (dataA.dailySales?.[m]?.[d] || 0);
             sB += (dataB.dailySales?.[m]?.[d] || 0);
         });
@@ -572,36 +690,85 @@ function renderTrendsStacked() {
     if (trendsStackedInst) trendsStackedInst.destroy();
 
     const labels = availableMonths.map(getMonthLabel);
-    const datasets = MACHINE_NAMES.map((m, idx) => {
-        const data = availableMonths.map(key => {
-            const d = allMonthsData[key];
-            const tot = computeMonthTotals(d);
-            return tot.machineSales[m] || 0;
-        });
-        return {
-            label: m,
-            data,
-            backgroundColor: MACHINE_COLORS[idx] + 'cc',
-            borderColor: MACHINE_COLORS[idx],
-            borderWidth: 1,
-        };
-    });
+    const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
 
-    trendsStackedInst = new Chart($('trendsStackedChart'), {
-        type: 'bar',
-        data: { labels, datasets },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'top' },
-                tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } }
+    if (activeMachines.length === 1) {
+        // Single machine: show sales + transfer line/bar chart
+        const m = activeMachines[0];
+        const colorIdx = MACHINE_NAMES.indexOf(m);
+        const salesData = [], transferData = [];
+        availableMonths.forEach(key => {
+            const d = allMonthsData[key];
+            const tot = computeMonthTotals(d, [m]);
+            salesData.push(tot.totalSales);
+            transferData.push(tot.totalTransfer);
+        });
+
+        trendsStackedInst = new Chart($('trendsStackedChart'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: t('chart_sales') + ' (' + m + ')',
+                        data: salesData,
+                        backgroundColor: (MACHINE_COLORS[colorIdx] || '#0066ff') + 'aa',
+                        borderColor: MACHINE_COLORS[colorIdx] || '#0066ff',
+                        borderWidth: 1, borderRadius: 6,
+                    },
+                    {
+                        label: t('chart_transfer') + ' (' + m + ')',
+                        data: transferData,
+                        backgroundColor: 'rgba(255,140,0,0.5)',
+                        borderColor: '#ff8c00',
+                        borderWidth: 1, borderRadius: 6,
+                    }
+                ]
             },
-            scales: {
-                x: { stacked: true },
-                y: { stacked: true, beginAtZero: true, ticks: { callback: v => fmt(v) } }
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { callback: v => fmt(v) } }
+                }
             }
-        }
-    });
+        });
+    } else {
+        // All machines: stacked bar
+        const datasets = MACHINE_NAMES.map((m, idx) => {
+            const data = availableMonths.map(key => {
+                const d = allMonthsData[key];
+                const tot = computeMonthTotals(d, [m]);
+                return tot.totalSales;
+            });
+            return {
+                label: m,
+                data,
+                backgroundColor: MACHINE_COLORS[idx] + 'cc',
+                borderColor: MACHINE_COLORS[idx],
+                borderWidth: 1,
+            };
+        });
+
+        trendsStackedInst = new Chart($('trendsStackedChart'), {
+            type: 'bar',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } }
+                },
+                scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true, ticks: { callback: v => fmt(v) } }
+                }
+            }
+        });
+    }
 }
 
 // ── Re-render on language change ──
