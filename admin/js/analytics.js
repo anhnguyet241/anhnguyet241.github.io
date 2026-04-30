@@ -114,10 +114,17 @@ function processFile(file) {
             const headers = [];
             const customers = [];
 
-            // Extract date headers from row 0 — chỉ lấy cột ngày tháng thực sự
+            // === CẤU TRÚC BẢNG MỚI ===
+            // Col 0: 客户bank (TK ngân hàng)
+            // Col 1: 偏好 (mã khách hàng / 编号)
+            // Col 2: 客户名字 (Tên khách hàng)
+            // Col 3: 类型 (Loại hình giao dịch)
+            // Col 4+: Ngày tháng (date columns)
+
+            // Extract date headers from row 0 — bắt đầu từ cột 4 trở đi
             if (rawData.length > 0) {
                 const headerRow = rawData[0] || [];
-                for (let j = 3; j < headerRow.length; j++) {
+                for (let j = 4; j < headerRow.length; j++) {
                     const h = headerRow[j] ? String(headerRow[j]).trim() : '';
                     // Chỉ giữ lại header là ngày tháng tiếng Trung (X月Y日) hoặc số serial Excel
                     const isCnDate = /^\d{1,2}月\d{1,2}日?$/.test(h);
@@ -132,7 +139,7 @@ function processFile(file) {
             const headerColMap = {};
             if (rawData.length > 0) {
                 const headerRow = rawData[0] || [];
-                for (let j = 3; j < headerRow.length; j++) {
+                for (let j = 4; j < headerRow.length; j++) {
                     const h = headerRow[j] ? String(headerRow[j]).trim() : '';
                     if (headers.includes(h)) {
                         headerColMap[h] = j;
@@ -140,13 +147,15 @@ function processFile(file) {
                 }
             }
 
-            // Parse customer rows (starting from row index 2)
+            // Parse customer rows (starting from row index 2, skip header + 1 empty row)
             for (let i = 2; i < rawData.length; i++) {
                 const row = rawData[i];
                 if (!row || row.length === 0) continue;
-                const id = row[0] ? String(row[0]).trim() : '';
-                const customerName = row[1] ? String(row[1]).trim() : '';
-                if (!id && !customerName) continue;
+                const id = row[0] ? String(row[0]).trim() : '';          // 客户bank
+                const code = row[1] ? String(row[1]).trim() : '';        // 偏好 / 编号
+                const customerName = row[2] ? String(row[2]).trim() : ''; // 客户名字
+                const cardType = row[3] ? String(row[3]).trim() : '';    // 类型
+                if (!code && !customerName) continue;
 
                 let total = 0;
                 const daily = {};
@@ -160,7 +169,7 @@ function processFile(file) {
                         daily[h] = 0;
                     }
                 });
-                customers.push({ id, name: customerName, total, daily });
+                customers.push({ id, code, name: customerName, cardType, total, daily });
             }
 
             parsedSheetsData[name] = { customers, headers };
@@ -196,7 +205,7 @@ function renderPreview(sheetName) {
     const sheet = parsedSheetsData[sheetName];
     if (!sheet) return;
 
-    previewHead.innerHTML = '<th>#</th><th>ID</th><th>Tên</th><th>Tổng GD</th>';
+    previewHead.innerHTML = '<th>#</th><th>Mã KH</th><th>Tên</th><th>Loại</th><th>Tổng GD</th>';
     sheet.headers.slice(0, 8).forEach(h => {
         previewHead.innerHTML += `<th>${h}</th>`;
     });
@@ -206,8 +215,9 @@ function renderPreview(sheetName) {
     sheet.customers.slice(0, 30).forEach((c, i) => {
         let row = `<tr>
             <td>${i + 1}</td>
-            <td><strong>${c.id}</strong></td>
+            <td><strong>${c.code || c.id}</strong></td>
             <td>${c.name}</td>
+            <td>${c.cardType || '—'}</td>
             <td style="font-weight:700;">${c.total.toLocaleString()}</td>`;
         sheet.headers.slice(0, 8).forEach(h => {
             const v = c.daily[h] || 0;

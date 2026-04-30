@@ -268,7 +268,7 @@ function mergeAllSheets() {
         const customers = sheet.customers || [];
 
         customers.forEach(item => {
-            const key = String(item.id || item.name || '').trim();
+            const key = String(item.code || item.id || item.name || '').trim();
             if (!key) return;
 
             if (customerMap.has(key)) {
@@ -285,7 +285,9 @@ function mergeAllSheets() {
                 dailyHeaders.forEach(h => { daily[h] = item.daily?.[h] || 0; });
                 customerMap.set(key, {
                     id: item.id,
+                    code: item.code || '',
                     name: item.name,
+                    cardType: item.cardType || '',
                     total: item.total || 0,
                     daily,
                     _staffList: [sheetName]
@@ -490,11 +492,12 @@ function renderLeaderboard() {
     currentSheetData.slice(0, 5).forEach((item, i) => {
         const div = document.createElement('div');
         div.className = 'leader-item';
+        const subInfo = [item.code || item.id, item.cardType].filter(Boolean).join(' · ');
         div.innerHTML = `
             <span class="leader-rank rank-${i + 1}">${i < 3 ? medals[i] : (i + 1)}</span>
             <div class="leader-info">
-                <div class="leader-name">${item.name || item.id}</div>
-                <div class="leader-sub">${item.id}</div>
+                <div class="leader-name">${item.name || item.code || item.id}</div>
+                <div class="leader-sub">${subInfo}</div>
             </div>
             <span class="leader-value">${fmt(item.total)}</span>`;
         lb.appendChild(div);
@@ -511,21 +514,21 @@ function renderTable() {
 
     let filtered = currentSheetData.filter(item => {
         if (filter !== 'all' && item._category !== filter) return false;
-        if (query && !(item.id + ' ' + item.name).toLowerCase().includes(query)) return false;
+        if (query && !(item.code + ' ' + item.name + ' ' + item.cardType + ' ' + item.id).toLowerCase().includes(query)) return false;
         return true;
     });
 
     filtered.forEach((item, idx) => {
-        const catLabel = t('tag_' + item._category);
         const pct = maxTotal > 0 ? (item.total / maxTotal * 100) : 0;
         const barColor = item._category === 'high' ? 'var(--green)' : item._category === 'low' ? 'var(--red)' : 'var(--blue)';
+        const cardTypeDisplay = item.cardType || '<span style="color:var(--text-secondary)">—</span>';
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="font-weight:600;color:var(--text-secondary)">${idx + 1}</td>
-            <td><strong>${item.id}</strong></td>
+            <td><strong>${item.code || item.id}</strong></td>
             <td>${item.name}</td>
+            <td>${cardTypeDisplay}</td>
             <td style="font-weight:700;">${fmt(item.total)}</td>
-            <td><span class="tag tag-${item._category}">${catLabel}</span></td>
             <td><div class="progress-bar-container"><div class="progress-bar-fill" style="width:${pct}%;background:${barColor};"></div></div></td>`;
         tbody.appendChild(tr);
     });
@@ -768,10 +771,10 @@ function exportReport() {
     const sheetName = sheetSelect.value || 'BaoCao';
     let csv = `Báo Cáo Phân Tích Giao Dịch - ${sheetName}\n`;
     csv += `Ngưỡng GD Nhiều: ${highThresholdInput.value}, Ngưỡng GD Ít: ${lowThresholdInput.value}\n\n`;
-    csv += `ID/Ngân Hàng,Tên KH/Dịch Vụ,Tổng Sản Lượng,Phân Loại\n`;
+    csv += `Mã KH (编号),Tên KH,Loại Hình (类型),Tổng Sản Lượng,Phân Loại\n`;
     currentSheetData.forEach(item => {
         const cat = item._category === 'high' ? 'GD Nhiều' : item._category === 'low' ? 'GD Ít' : 'Bình Thường';
-        csv += `"${item.id}","${item.name}",${item.total},"${cat}"\n`;
+        csv += `"${item.code || item.id}","${item.name}","${item.cardType || ''}",${item.total},"${cat}"\n`;
     });
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
