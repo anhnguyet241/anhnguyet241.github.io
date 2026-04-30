@@ -505,6 +505,17 @@ function renderLeaderboard() {
 }
 
 // ── Table ──
+// Helper: tìm ngày giao dịch gần nhất của 1 khách hàng
+function getLastTxDate(item) {
+    const daily = item.daily || {};
+    for (let i = dailyHeaders.length - 1; i >= 0; i--) {
+        if ((daily[dailyHeaders[i]] || 0) > 0) {
+            return dailyHeaders[i];
+        }
+    }
+    return null;
+}
+
 function renderTable() {
     const query = searchInput.value.toLowerCase();
     const filter = filterCategory.value;
@@ -522,6 +533,8 @@ function renderTable() {
         const pct = maxTotal > 0 ? (item.total / maxTotal * 100) : 0;
         const barColor = item._category === 'high' ? 'var(--green)' : item._category === 'low' ? 'var(--red)' : 'var(--blue)';
         const cardTypeDisplay = item.cardType || '<span style="color:var(--text-secondary)">—</span>';
+        const lastTxHeader = getLastTxDate(item);
+        const lastTxDisplay = lastTxHeader ? formatDateLabel(lastTxHeader) : `<span class="tag tag-low">${t('never_tx')}</span>`;
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="font-weight:600;color:var(--text-secondary)">${idx + 1}</td>
@@ -529,6 +542,7 @@ function renderTable() {
             <td>${item.name}</td>
             <td>${cardTypeDisplay}</td>
             <td style="font-weight:700;">${fmt(item.total)}</td>
+            <td>${lastTxDisplay}</td>
             <td><div class="progress-bar-container"><div class="progress-bar-fill" style="width:${pct}%;background:${barColor};"></div></div></td>`;
         tr.addEventListener('click', () => openCustomerDetail(item));
         tbody.appendChild(tr);
