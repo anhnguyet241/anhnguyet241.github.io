@@ -402,8 +402,9 @@
                             <thead>
                                 <tr>
                                     <th>#</th>
-                                    <th data-i18n="col_id">ID / 银行</th>
-                                    <th data-i18n="col_name">客户名 / 服务</th>
+                                    <th data-i18n="col_code">编号</th>
+                                    <th data-i18n="col_name">客户名</th>
+                                    <th data-i18n="col_cardtype">类型</th>
                                     <th data-i18n="col_total_all">总交易量(全期)</th>
                                     <th data-i18n="col_last_tx">最近交易日</th>
                                     <th data-i18n="col_status">状态</th>
@@ -446,6 +447,70 @@
             </section>
         </div>
     </main>
+
+    <!-- Customer Detail Modal -->
+    <div class="detail-modal-overlay" id="detailModal">
+        <div class="detail-modal">
+            <div class="detail-modal-header">
+                <div class="detail-modal-title">
+                    <div class="detail-customer-avatar" id="detailAvatar">KH</div>
+                    <div>
+                        <h2 id="detailName">—</h2>
+                        <div class="detail-meta">
+                            <span class="detail-code" id="detailCode">—</span>
+                            <span class="detail-cardtype" id="detailCardType"></span>
+                        </div>
+                    </div>
+                </div>
+                <button class="detail-close" id="detailClose"><i class="fas fa-times"></i></button>
+            </div>
+
+            <div class="detail-summary-row">
+                <div class="detail-summary-item">
+                    <i class="fas fa-coins" style="color:var(--yellow)"></i>
+                    <div>
+                        <span class="detail-summary-label" data-i18n="col_total">总交易量</span>
+                        <strong id="detailTotal">0</strong>
+                    </div>
+                </div>
+                <div class="detail-summary-item">
+                    <i class="fas fa-calendar-check" style="color:var(--green)"></i>
+                    <div>
+                        <span class="detail-summary-label" data-i18n="detail_active_days">交易天数</span>
+                        <strong id="detailActiveDays">0</strong>
+                    </div>
+                </div>
+                <div class="detail-summary-item">
+                    <i class="fas fa-chart-simple" style="color:var(--primary)"></i>
+                    <div>
+                        <span class="detail-summary-label" data-i18n="detail_avg_daily">日均</span>
+                        <strong id="detailAvgDaily">0</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="detail-month-selector">
+                <label data-i18n="detail_select_month">选择月份：</label>
+                <select id="detailMonthSelect"></select>
+            </div>
+
+            <div class="detail-calendar-grid" id="detailCalendar">
+                <!-- JS renders calendar here -->
+            </div>
+
+            <div class="detail-table-wrap">
+                <table id="detailDailyTable">
+                    <thead>
+                        <tr>
+                            <th data-i18n="col_date">日期</th>
+                            <th data-i18n="col_total">交易量</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <script src="i18n.js"></script>
     <script src="script.js"></script>

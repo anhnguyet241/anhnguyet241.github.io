@@ -530,6 +530,7 @@ function renderTable() {
             <td>${cardTypeDisplay}</td>
             <td style="font-weight:700;">${fmt(item.total)}</td>
             <td><div class="progress-bar-container"><div class="progress-bar-fill" style="width:${pct}%;background:${barColor};"></div></div></td>`;
+        tr.addEventListener('click', () => openCustomerDetail(item));
         tbody.appendChild(tr);
     });
     $('tableInfo').textContent = t('table_info', { filtered: filtered.length, total: currentSheetData.length });
@@ -726,7 +727,7 @@ function renderInactive() {
     tbody.innerHTML = '';
 
     if (inactiveList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:30px;">
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:30px;">
             <i class="fas fa-check-circle text-green" style="font-size:28px;"></i><br><br>
             ${t('all_active_msg', { n: nDays })}
         </td></tr>`;
@@ -736,10 +737,12 @@ function renderInactive() {
     inactiveList.forEach((item, idx) => {
         const tr = document.createElement('tr');
         const lastDay = item.lastActiveDay ? formatDateLabel(item.lastActiveDay) : `<span class="tag tag-low">${t('never_tx')}</span>`;
+        const cardTypeDisplay = item.cardType || '<span style="color:var(--text-secondary)">—</span>';
         tr.innerHTML = `
             <td style="font-weight:600;">${idx + 1}</td>
-            <td><strong>${item.id}</strong></td>
+            <td><strong>${item.code || item.id}</strong></td>
             <td>${item.name}</td>
+            <td>${cardTypeDisplay}</td>
             <td style="font-weight:700;">${fmt(item.total)}</td>
             <td>${lastDay}</td>
             <td><span class="tag tag-inactive"><i class="fas fa-clock"></i> ${t('status_inactive')}</span></td>`;
@@ -783,3 +786,216 @@ function exportReport() {
     link.click();
     URL.revokeObjectURL(link.href);
 }
+
+// ══════════════════════════════════════════════════
+// ══════ CUSTOMER DETAIL MODAL ═══════════════════
+// ══════════════════════════════════════════════════
+
+let _detailCurrentItem = null;
+
+// Parse header key → {year, month, day} Date object
+function parseHeaderToDate(headerKey) {
+    const s = String(headerKey).trim();
+    // Excel serial date
+    if (!isNaN(s) && Number(s) > 40000) {
+        const excelEpoch = new Date(1899, 11, 30);
+        return new Date(excelEpoch.getTime() + Number(s) * 86400000);
+    }
+    // Chinese date: X月Y日
+    const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+    if (cnMatch) {
+        const month = parseInt(cnMatch[1]);
+        const day = parseInt(cnMatch[2]);
+        const year = new Date().getFullYear();
+        return new Date(year, month - 1, day);
+    }
+    return null;
+}
+
+// Open detail modal
+function openCustomerDetail(item) {
+    _detailCurrentItem = item;
+    const modal = $('detailModal');
+
+    // Fill header info
+    const nameStr = item.name || item.code || item.id || '—';
+    $('detailName').textContent = nameStr;
+    $('detailAvatar').textContent = nameStr.substring(0, 2).toUpperCase();
+    $('detailCode').textContent = item.code || item.id || '—';
+    
+    const ct = $('detailCardType');
+    if (item.cardType) {
+        ct.textContent = item.cardType;
+        ct.style.display = 'inline-block';
+    } else {
+        ct.style.display = 'none';
+    }
+
+    // Parse all dates and group by month
+    const daily = item.daily || {};
+    const dateEntries = []; // [{date, headerKey, value}]
+    
+    dailyHeaders.forEach(h => {
+        const d = parseHeaderToDate(h);
+        if (d) {
+            dateEntries.push({ date: d, headerKey: h, value: daily[h] || 0 });
+        }
+    });
+
+    // Group months
+    const months = {};
+    dateEntries.forEach(e => {
+        const key = `${e.date.getFullYear()}-${String(e.date.getMonth() + 1).padStart(2, '0')}`;
+        if (!months[key]) months[key] = [];
+        months[key].push(e);
+    });
+
+    const monthKeys = Object.keys(months).sort();
+
+    // Summary stats
+    const activeDays = dateEntries.filter(e => e.value > 0).length;
+    const totalVal = dateEntries.reduce((s, e) => s + e.value, 0);
+    $('detailTotal').textContent = fmt(totalVal);
+    $('detailActiveDays').textContent = activeDays;
+    $('detailAvgDaily').textContent = activeDays > 0 ? fmt(Math.round(totalVal / activeDays)) : '0';
+
+    // Populate month selector
+    const monthSelect = $('detailMonthSelect');
+    monthSelect.innerHTML = '';
+    
+    // "All months" option
+    const allOpt = document.createElement('option');
+    allOpt.value = '__all__';
+    allOpt.textContent = currentLang === 'zh' ? '📅 全部月份' : '📅 Tất cả tháng';
+    monthSelect.appendChild(allOpt);
+    
+    monthKeys.forEach(mk => {
+        const [y, m] = mk.split('-');
+        const opt = document.createElement('option');
+        opt.value = mk;
+        opt.textContent = currentLang === 'zh' ? `${y}年${parseInt(m)}月` : `Tháng ${parseInt(m)}/${y}`;
+        monthSelect.appendChild(opt);
+    });
+
+    // Default to the latest month with actual transactions
+    let defaultMonth = '__all__';
+    for (let i = monthKeys.length - 1; i >= 0; i--) {
+        const hasAny = months[monthKeys[i]].some(e => e.value > 0);
+        if (hasAny) { defaultMonth = monthKeys[i]; break; }
+    }
+    monthSelect.value = defaultMonth;
+
+    monthSelect.onchange = () => renderDetailForMonth(months, monthKeys);
+    
+    renderDetailForMonth(months, monthKeys);
+
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function renderDetailForMonth(months, monthKeys) {
+    const selectedMonth = $('detailMonthSelect').value;
+    const calendar = $('detailCalendar');
+    const tbody = document.querySelector('#detailDailyTable tbody');
+
+    let entriesToShow = [];
+    if (selectedMonth === '__all__') {
+        monthKeys.forEach(mk => entriesToShow = entriesToShow.concat(months[mk]));
+    } else {
+        entriesToShow = months[selectedMonth] || [];
+    }
+
+    // Find max value for color coding
+    const maxVal = Math.max(1, ...entriesToShow.map(e => e.value));
+
+    // ── Calendar Grid ──
+    calendar.innerHTML = '';
+
+    if (selectedMonth !== '__all__' && entriesToShow.length > 0) {
+        // Show calendar view for single month
+        const [year, month] = selectedMonth.split('-').map(Number);
+        const weekDays = currentLang === 'zh' 
+            ? ['日', '一', '二', '三', '四', '五', '六'] 
+            : ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+        
+        weekDays.forEach(d => {
+            calendar.innerHTML += `<div class="detail-cal-header">${d}</div>`;
+        });
+
+        const firstDay = new Date(year, month - 1, 1).getDay();
+        const daysInMonth = new Date(year, month, 0).getDate();
+
+        // Build lookup: day → value
+        const dayLookup = {};
+        entriesToShow.forEach(e => {
+            dayLookup[e.date.getDate()] = e.value;
+        });
+
+        // Empty cells before first day
+        for (let i = 0; i < firstDay; i++) {
+            calendar.innerHTML += `<div class="detail-cal-day empty"></div>`;
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const val = dayLookup[d] || 0;
+            let cls = 'detail-cal-day';
+            if (val > 0) {
+                cls += val >= maxVal * 0.5 ? ' has-tx-high' : ' has-tx';
+            } else {
+                cls += ' no-tx';
+            }
+            const valDisplay = val > 0 ? `<span class="cal-val">${val}</span>` : '';
+            calendar.innerHTML += `<div class="${cls}"><span class="cal-date">${d}</span>${valDisplay}</div>`;
+        }
+    } else {
+        // All months: no calendar, only table
+        calendar.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:16px; color:var(--text-secondary); font-size:13px;">
+            <i class="fas fa-calendar-alt"></i> ${currentLang === 'zh' ? '请选择单个月份以查看日历视图' : 'Chọn 1 tháng để xem lịch'}
+        </div>`;
+    }
+
+    // ── Daily Table (chỉ hiện ngày có giao dịch) ──
+    tbody.innerHTML = '';
+    const txDays = entriesToShow.filter(e => e.value > 0).sort((a, b) => a.date - b.date);
+
+    if (txDays.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="2" style="text-align:center;padding:24px;color:var(--text-secondary);">
+            <i class="fas fa-inbox" style="font-size:24px;margin-bottom:8px;display:block;"></i>
+            ${currentLang === 'zh' ? '该月无交易记录' : 'Không có giao dịch trong tháng này'}
+        </td></tr>`;
+    } else {
+        txDays.forEach(e => {
+            const dateLabel = e.date.toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'vi-VN', 
+                { weekday: 'short', month: '2-digit', day: '2-digit' });
+            const pct = (e.value / maxVal * 100);
+            const barColor = pct >= 50 ? 'var(--green)' : 'var(--blue)';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight:600;">${dateLabel}</td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div style="flex:1;height:6px;background:#eee;border-radius:3px;overflow:hidden;min-width:60px;">
+                            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:3px;transition:width 0.4s;"></div>
+                        </div>
+                        <strong style="min-width:50px;text-align:right;">${fmt(e.value)}</strong>
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+    }
+}
+
+// Close modal
+function closeCustomerDetail() {
+    $('detailModal').classList.remove('active');
+    document.body.style.overflow = '';
+    _detailCurrentItem = null;
+}
+
+$('detailClose').addEventListener('click', closeCustomerDetail);
+$('detailModal').addEventListener('click', e => {
+    if (e.target === $('detailModal')) closeCustomerDetail();
+});
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('detailModal').classList.contains('active')) closeCustomerDetail();
+});

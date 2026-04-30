@@ -156,6 +156,11 @@ const TRANSLATIONS = {
         // Updated at
         updated_at: '更新于：',
         data_loaded: '数据已加载',
+
+        // Detail modal
+        detail_active_days: '交易天数',
+        detail_avg_daily: '日均',
+        detail_select_month: '选择月份：',
     },
 
     vi: {
@@ -310,6 +315,11 @@ const TRANSLATIONS = {
         // Updated at
         updated_at: 'Cập nhật: ',
         data_loaded: 'Đã tải dữ liệu',
+
+        // Detail modal
+        detail_active_days: 'Số Ngày GD',
+        detail_avg_daily: 'TB / Ngày',
+        detail_select_month: 'Chọn tháng:',
     }
 };
 
