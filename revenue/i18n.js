@@ -80,6 +80,7 @@ const TRANSLATIONS = {
         // Compare section
         compare_month_a: '月份 A：',
         compare_month_b: '月份 B：',
+        compare_days_label: '对比前几天 (至第N天)：',
         compare_sales_change: '营业额变化',
         compare_transfer_change: '转账额变化',
         compare_increase: '增长',
@@ -181,6 +182,7 @@ const TRANSLATIONS = {
         // Compare section
         compare_month_a: 'Tháng A:',
         compare_month_b: 'Tháng B:',
+        compare_days_label: 'So sánh tới ngày thứ:',
         compare_sales_change: 'Biến Động Doanh Số',
         compare_transfer_change: 'Biến Động Tiền Chuyển',
         compare_increase: 'Tăng',

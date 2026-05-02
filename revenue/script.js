@@ -505,29 +505,51 @@ function renderCompare() {
     const dataB = allMonthsData[monthB];
     if (!dataA || !dataB) return;
 
+    // Determine limit days
+    const maxDaysA = dataA.dateHeaders ? dataA.dateHeaders.length : 0;
+    const maxDaysB = dataB.dateHeaders ? dataB.dateHeaders.length : 0;
+    
+    const daysInput = $('compareDaysInput');
+    const minAvailable = Math.min(maxDaysA, maxDaysB);
+    if (daysInput && !daysInput.value) {
+        daysInput.value = minAvailable || 1;
+    }
+    
+    let limitDays = parseInt(daysInput?.value, 10);
+    if (isNaN(limitDays) || limitDays < 1) limitDays = 31;
+
     // Compute totals
-    const totA = computeMonthTotals(dataA);
-    const totB = computeMonthTotals(dataB);
+    const totA = computeMonthTotals(dataA, null, limitDays);
+    const totB = computeMonthTotals(dataB, null, limitDays);
 
     // KPIs
     renderChangeKPI('compareSalesChange', totA.totalSales, totB.totalSales);
     renderChangeKPI('compareTransferChange', totA.totalTransfer, totB.totalTransfer);
 
     // Chart
-    renderCompareChart(dataA, dataB, monthA, monthB);
+    renderCompareChart(dataA, dataB, monthA, monthB, limitDays);
 
     // Machine comparison table
-    renderCompareMachineTable(dataA, dataB, monthA, monthB);
+    renderCompareMachineTable(dataA, dataB, monthA, monthB, limitDays);
 }
 
 // Listen for changes on compare dropdowns
-$('compareMonthA')?.addEventListener('change', renderCompare);
-$('compareMonthB')?.addEventListener('change', renderCompare);
+$('compareMonthA')?.addEventListener('change', () => {
+    if ($('compareDaysInput')) $('compareDaysInput').value = '';
+    renderCompare();
+});
+$('compareMonthB')?.addEventListener('change', () => {
+    if ($('compareDaysInput')) $('compareDaysInput').value = '';
+    renderCompare();
+});
+$('compareDaysInput')?.addEventListener('input', renderCompare);
 
-function computeMonthTotals(data, machineFilter) {
+function computeMonthTotals(data, machineFilter, limitDays = null) {
     const activeMachines = machineFilter || (currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine]);
     let totalSales = 0, totalTransfer = 0;
-    const numDays = data.dateHeaders ? data.dateHeaders.length : 0;
+    const maxDays = data.dateHeaders ? data.dateHeaders.length : 0;
+    const numDays = limitDays !== null ? Math.min(limitDays, maxDays) : maxDays;
+    
     for (let d = 0; d < numDays; d++) {
         activeMachines.forEach(m => {
             totalSales += (data.dailySales?.[m]?.[d] || 0);
@@ -559,13 +581,12 @@ function renderChangeKPI(elId, valA, valB) {
     `;
 }
 
-function renderCompareChart(dataA, dataB, monthKeyA, monthKeyB) {
+function renderCompareChart(dataA, dataB, monthKeyA, monthKeyB, limitDays = null) {
     if (compareChartInst) compareChartInst.destroy();
 
-    const maxDays = Math.max(
-        dataA.dateHeaders?.length || 0,
-        dataB.dateHeaders?.length || 0
-    );
+    const maxDaysA = dataA.dateHeaders?.length || 0;
+    const maxDaysB = dataB.dateHeaders?.length || 0;
+    const maxDays = limitDays !== null ? limitDays : Math.max(maxDaysA, maxDaysB);
     const labels = Array.from({ length: maxDays }, (_, i) => i + 1);
 
     const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
@@ -573,8 +594,8 @@ function renderCompareChart(dataA, dataB, monthKeyA, monthKeyB) {
     for (let d = 0; d < maxDays; d++) {
         let sA = 0, sB = 0;
         activeMachines.forEach(m => {
-            sA += (dataA.dailySales?.[m]?.[d] || 0);
-            sB += (dataB.dailySales?.[m]?.[d] || 0);
+            if (d < maxDaysA) sA += (dataA.dailySales?.[m]?.[d] || 0);
+            if (d < maxDaysB) sB += (dataB.dailySales?.[m]?.[d] || 0);
         });
         salesA.push(sA);
         salesB.push(sB);
@@ -613,9 +634,9 @@ function renderCompareChart(dataA, dataB, monthKeyA, monthKeyB) {
     });
 }
 
-function renderCompareMachineTable(dataA, dataB, monthKeyA, monthKeyB) {
-    const totA = computeMonthTotals(dataA);
-    const totB = computeMonthTotals(dataB);
+function renderCompareMachineTable(dataA, dataB, monthKeyA, monthKeyB, limitDays = null) {
+    const totA = computeMonthTotals(dataA, null, limitDays);
+    const totB = computeMonthTotals(dataB, null, limitDays);
 
     let headHTML = `<tr><th>${t('col_machine')}</th><th>${getMonthLabel(monthKeyA)}</th><th>${getMonthLabel(monthKeyB)}</th><th>${t('col_change')}</th></tr>`;
     $('compareMachineHead').innerHTML = headHTML;

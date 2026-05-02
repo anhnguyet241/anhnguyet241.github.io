@@ -9,6 +9,7 @@ let allSheetsData = {};
 let currentSheetData = [];
 let dailyHeaders = [];
 let sortDirection = {};
+let currentMonthKey = '__all__';
 
 // ── Chart Instances ──
 let barChartInstance = null;
@@ -35,9 +36,16 @@ const searchInput = $('searchInput');
 const filterCategory = $('filterCategory');
 const inactiveDaysInput = $('inactiveDays');
 const inactiveDaysVal = $('inactiveDaysVal');
+const monthSelectDropdown = $('monthSelectDropdown');
 
 // ── Events ──
 sheetSelect.addEventListener('change', () => loadSheetData(sheetSelect.value));
+if (monthSelectDropdown) {
+    monthSelectDropdown.addEventListener('change', (e) => {
+        currentMonthKey = e.target.value;
+        loadMonthData(currentMonthKey);
+    });
+}
 highThresholdInput.addEventListener('input', updateThresholds);
 lowThresholdInput.addEventListener('input', updateThresholds);
 searchInput.addEventListener('input', renderTable);
@@ -130,7 +138,7 @@ async function loadMetaAndCockpit() {
          machineDropdown.value = defaultMachine;
     }
     
-    if (machineData && machineData.sheetNames && machineData.sheetNames.length > 0) {
+    if (machineData && ((machineData.sheetNames && machineData.sheetNames.length > 0) || (machineData.months && Object.keys(machineData.months).length > 0))) {
         loadMachine(defaultMachine, machineData);
     } else {
         $('splashScreen').style.display = 'none';
@@ -165,11 +173,37 @@ async function loadMachine(machineId, machineData) {
     if ($('machineSplashGrid')) $('machineSplashGrid').style.display = 'none';
     if ($('machineLoadingSpinner')) $('machineLoadingSpinner').style.display = 'flex';
     
-    const sheetNames = machineData.sheetNames || [];
+    // Set up month dropdown
+    if (monthSelectDropdown) {
+        monthSelectDropdown.innerHTML = `<option value="__all__" data-i18n-key="month_all">${t('month_all')}</option>`;
+        if (machineData.months) {
+            const monthKeys = Object.keys(machineData.months).sort((a, b) => b.localeCompare(a));
+            monthKeys.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = `📅 ${m}`;
+                monthSelectDropdown.appendChild(opt);
+            });
+            currentMonthKey = monthKeys.length > 0 ? monthKeys[0] : '__all__';
+            monthSelectDropdown.value = currentMonthKey;
+            monthSelectDropdown.disabled = false;
+        } else {
+            currentMonthKey = '__all__';
+            monthSelectDropdown.disabled = true;
+        }
+    }
 
-    // Hiện thời gian cập nhật của máy này
-    if (machineData.uploadedAt) {
-        const d = new Date(machineData.uploadedAt);
+    // Hiện thời gian cập nhật của máy này (lấy từ máy hoặc tháng mới nhất)
+    let uploadDateStr = machineData.uploadedAt;
+    if (machineData.months && currentMonthKey !== '__all__') {
+        uploadDateStr = machineData.months[currentMonthKey]?.uploadedAt || machineData.uploadedAt;
+    } else if (machineData.months) {
+        const sorted = Object.keys(machineData.months).sort((a,b) => b.localeCompare(a));
+        if (sorted.length > 0) uploadDateStr = machineData.months[sorted[0]].uploadedAt;
+    }
+
+    if (uploadDateStr) {
+        const d = new Date(uploadDateStr);
         const locale = currentLang === 'zh' ? 'zh-CN' : 'vi-VN';
         $('dataInfoText').removeAttribute('data-i18n'); // Bỏ để tránh đè lúc đổi ngôn ngữ
         $('dataInfoText').textContent = t('updated_at') +
@@ -178,26 +212,102 @@ async function loadMachine(machineId, machineData) {
         window._uploadedAt = d;
     }
 
+    await loadMonthData(currentMonthKey);
+}
+
+async function loadMonthData(monthKey) {
+    if ($('machineLoadingSpinner')) $('machineLoadingSpinner').style.display = 'flex';
+    
+    const machineData = systemMeta?.machines?.[`machine_${window._currentMachineId}`] || systemMeta?.machines?.[window._currentMachineId];
+    if (!machineData) return;
+
+    allSheetsData = {};
+    let allHeaders = new Set();
+    let uniqueSheets = new Set();
+    const docsToFetch = [];
+    
+    if (machineData.months) {
+        if (monthKey === '__all__') {
+            for (const [mKey, mData] of Object.entries(machineData.months)) {
+                mData.headers?.forEach(h => allHeaders.add(h));
+                mData.sheetNames?.forEach(s => {
+                    uniqueSheets.add(s);
+                    docsToFetch.push({ name: s, month: mKey, id: `machine_${window._currentMachineId}_${mKey}_${s}` });
+                });
+            }
+        } else {
+            const mData = machineData.months[monthKey];
+            if (mData) {
+                mData.headers?.forEach(h => allHeaders.add(h));
+                mData.sheetNames?.forEach(s => {
+                    uniqueSheets.add(s);
+                    docsToFetch.push({ name: s, month: monthKey, id: `machine_${window._currentMachineId}_${monthKey}_${s}` });
+                });
+            }
+        }
+    } else {
+        // Legacy
+        machineData.headers?.forEach(h => allHeaders.add(h));
+        machineData.sheetNames?.forEach(s => {
+            uniqueSheets.add(s);
+            docsToFetch.push({ name: s, id: `machine_${window._currentMachineId}_${s}` });
+        });
+    }
+
+    // Filter and sort valid headers
+    dailyHeaders = Array.from(allHeaders).filter(h => {
+        const s = String(h).trim();
+        return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
+    }).sort((a, b) => {
+        const parseDate = (headerKey) => {
+            const s = String(headerKey).trim();
+            if (!isNaN(s) && Number(s) > 40000) return new Date(1899, 11, 30).getTime() + Number(s) * 86400000;
+            const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+            if (cnMatch) return new Date(new Date().getFullYear(), parseInt(cnMatch[1]) - 1, parseInt(cnMatch[2])).getTime();
+            return 0;
+        };
+        return parseDate(a) - parseDate(b);
+    });
+
     try {
-        // Load các sheets (nhân viên) của máy này
-        allSheetsData = {};
-        for (const name of sheetNames) {
-            // Thêm prefix machine_X_
-            const docId = `machine_${machineId}_${name}`;
-            const doc = await db.collection('analytics_sheets').doc(docId).get();
-            if (doc.exists) allSheetsData[name] = doc.data();
+        // Fetch and merge
+        const sheetCustomerMaps = {}; // name -> Map
+        for (const task of docsToFetch) {
+            const doc = await db.collection('analytics_sheets').doc(task.id).get();
+            if (doc.exists) {
+                if (!sheetCustomerMaps[task.name]) sheetCustomerMaps[task.name] = new Map();
+                const map = sheetCustomerMaps[task.name];
+                
+                const customers = doc.data().customers || [];
+                customers.forEach(c => {
+                    const key = String(c.code || c.id || c.name || '').trim();
+                    if (!key) return;
+                    
+                    if (map.has(key)) {
+                        const existing = map.get(key);
+                        existing.total += (c.total || 0);
+                        Object.assign(existing.daily, c.daily || {});
+                    } else {
+                        map.set(key, c);
+                    }
+                });
+            }
+        }
+        
+        // Convert map back to array
+        for (const [sName, map] of Object.entries(sheetCustomerMaps)) {
+            allSheetsData[sName] = { customers: Array.from(map.values()) };
         }
 
-        // Sheet dropdown — "全部" đầu tiên, rồi từng nhân viên
+        // Setup sheet dropdown
         sheetSelect.innerHTML = '';
-
         const allOpt = document.createElement('option');
         allOpt.value = '__all__';
         allOpt.textContent = t('select_all');
         allOpt.setAttribute('data-i18n-key', 'select_all');
         sheetSelect.appendChild(allOpt);
 
-        sheetNames.forEach(name => {
+        Array.from(uniqueSheets).sort().forEach(name => {
             const opt = document.createElement('option');
             opt.value = name;
             opt.textContent = t('select_staff_prefix') + name;
@@ -233,15 +343,6 @@ async function loadMachine(machineId, machineData) {
 }
 
 function loadSheetData(sheetName) {
-    // Lấy headers chung từ systemMeta của máy hiện tại.
-    const metaMachineKey = `machine_${window._currentMachineId}`;
-    const machineMeta = systemMeta?.machines?.[metaMachineKey] || systemMeta?.machines?.[window._currentMachineId];
-    const rawHeaders = machineMeta?.headers || [];
-    dailyHeaders = rawHeaders.filter(h => {
-        const s = String(h).trim();
-        return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
-    });
-
     if (sheetName === '__all__') {
         // Gộp tất cả sheets
         const merged = mergeAllSheets();

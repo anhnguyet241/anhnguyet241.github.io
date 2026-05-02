@@ -3,6 +3,7 @@
 
 let parsedWorkbook = null;
 let parsedSheetsData = {}; // { sheetName: { data: [...], headers: [...] } }
+let uploadedDetectedMonth = ''; // e.g., '2026-05'
 
 const fileInput = document.getElementById('fileInput');
 const uploadCard = document.getElementById('uploadCard');
@@ -42,20 +43,55 @@ btnUpload.addEventListener('click', saveToFirestore);
 
 // ── Delete Button ──
 btnDelete.addEventListener('click', async () => {
-    if (!confirm('Bạn có chắc muốn xoá toàn bộ dữ liệu giao dịch trên hệ thống?')) return;
+    const selectedMachine = document.querySelector('input[name="machineSelect"]:checked').value;
+    const deleteSelect = document.getElementById('deleteMonthSelect').value;
+    
+    let msg = `Bạn có chắc muốn xoá toàn bộ dữ liệu của Máy 00${selectedMachine}?`;
+    if (deleteSelect !== '__all__') {
+        msg = `Bạn có chắc muốn xoá dữ liệu tháng ${deleteSelect} của Máy 00${selectedMachine}?`;
+    }
+    
+    if (!confirm(msg)) return;
+    
     try {
         showProgress('Đang xoá dữ liệu...');
 
-        // Delete all sheet documents
+        const machineId = `machine_${selectedMachine}`;
         const snapshot = await db.collection('analytics_sheets').get();
         const batch = db.batch();
-        snapshot.forEach(doc => batch.delete(doc.ref));
-        batch.delete(db.collection('analytics').doc('meta'));
+        
+        // Delete sheets
+        snapshot.forEach(doc => {
+            if (deleteSelect === '__all__') {
+                if (doc.id.startsWith(`${machineId}_`)) batch.delete(doc.ref);
+            } else {
+                if (doc.id.startsWith(`${machineId}_${deleteSelect}_`)) batch.delete(doc.ref);
+            }
+        });
+        
+        // Update meta
+        const metaRef = db.collection('analytics').doc('meta');
+        const metaDoc = await metaRef.get();
+        if (metaDoc.exists) {
+            const metaData = metaDoc.data();
+            if (metaData.machines && metaData.machines[selectedMachine]) {
+                if (deleteSelect === '__all__') {
+                    delete metaData.machines[selectedMachine];
+                } else {
+                    if (metaData.machines[selectedMachine].months) {
+                        delete metaData.machines[selectedMachine].months[deleteSelect];
+                    }
+                }
+                metaData.lastUpdated = firebase.firestore.FieldValue.serverTimestamp();
+                batch.update(metaRef, { machines: metaData.machines, lastUpdated: metaData.lastUpdated });
+            }
+        }
+
         await batch.commit();
 
         setProgress(100, 'Đã xoá thành công!');
         hideProgress(1500);
-        showToast('Đã xoá toàn bộ dữ liệu!', 'success');
+        showToast('Đã xoá dữ liệu!', 'success');
         init();
     } catch (err) {
         console.error(err);
@@ -65,30 +101,23 @@ btnDelete.addEventListener('click', async () => {
 });
 
 // ── Initialization & Current Data Loading ──
+let systemMeta = null;
+
 async function init() {
     try {
         const metaDoc = await db.collection('analytics').doc('meta').get();
         if (metaDoc.exists) {
-            const data = metaDoc.data();
-            const ts = data.lastUpdated ? data.lastUpdated.toDate() : new Date();
+            systemMeta = metaDoc.data();
+            const ts = systemMeta.lastUpdated ? systemMeta.lastUpdated.toDate() : new Date();
             document.getElementById('statusState').innerHTML = `<span style="color:#00c853;"><i class="fas fa-check-circle"></i> Sẵn sàng</span>`;
-            document.getElementById('statusDate').textContent = `${ts.toLocaleDateString('vi-VN')} ${ts.toLocaleTimeString('vi-VN')}`;
             
-            // Check if machines exist
-            if (data.machines) {
-                const count = Object.keys(data.machines).length;
+            if (systemMeta.machines) {
+                const count = Object.keys(systemMeta.machines).length;
                 document.getElementById('statusFile').textContent = count > 0 ? `${count} máy đang hoạt động` : 'Chưa có dữ liệu máy nào';
-                let totalSheets = 0;
-                Object.values(data.machines).forEach(m => {
-                    if (m.sheetNames) totalSheets += m.sheetNames.length;
-                });
-                document.getElementById('statusSheets').textContent = totalSheets;
-            } else {
-                // Legacy support
-                document.getElementById('statusFile').textContent = data.fileName || 'Đã có dữ liệu file cũ';
-                document.getElementById('statusSheets').textContent = data.sheetNames ? data.sheetNames.length : '—';
             }
+            updateMachineStatusUI();
         } else {
+            systemMeta = null;
             document.getElementById('statusState').innerHTML = `<span style="color:#ff1744;"><i class="fas fa-times-circle"></i> Trống</span>`;
         }
     } catch (err) {
@@ -96,6 +125,41 @@ async function init() {
         document.getElementById('statusState').innerHTML = `<span style="color:#ff1744;"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối</span>`;
     }
 }
+
+function updateMachineStatusUI() {
+    const selectedMachine = document.querySelector('input[name="machineSelect"]:checked').value;
+    const delSelect = document.getElementById('deleteMonthSelect');
+    delSelect.innerHTML = '<option value="__all__">Xoá toàn bộ dữ liệu máy này</option>';
+    
+    if (systemMeta && systemMeta.machines && systemMeta.machines[selectedMachine]) {
+        const mData = systemMeta.machines[selectedMachine];
+        if (mData.months) {
+            const months = Object.keys(mData.months).sort();
+            document.getElementById('statusMonths').textContent = months.length > 0 ? months.join(', ') : 'Chưa có';
+            let totalSheets = 0;
+            months.forEach(m => {
+                totalSheets += mData.months[m].sheetNames.length;
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = `Xoá dữ liệu tháng ${m}`;
+                delSelect.appendChild(opt);
+            });
+            document.getElementById('statusSheets').textContent = totalSheets;
+        } else {
+            // Legacy data
+            document.getElementById('statusMonths').textContent = 'Legacy data (không rõ tháng)';
+            document.getElementById('statusSheets').textContent = mData.sheetNames ? mData.sheetNames.length : '—';
+        }
+    } else {
+        document.getElementById('statusMonths').textContent = 'Chưa có';
+        document.getElementById('statusSheets').textContent = '0';
+    }
+}
+
+// Lắng nghe khi đổi máy để update status
+document.querySelectorAll('input[name="machineSelect"]').forEach(radio => {
+    radio.addEventListener('change', updateMachineStatusUI);
+});
 
 // ── Process Uploaded File ──
 function processFile(file) {
@@ -147,6 +211,30 @@ function processFile(file) {
                 }
             }
 
+            // Extract month from the first available header
+            if (headers.length > 0 && !uploadedDetectedMonth) {
+                const firstHeader = headers[0];
+                const s = String(firstHeader).trim();
+                let dateObj = null;
+                if (!isNaN(s) && Number(s) > 40000) {
+                    const excelEpoch = new Date(1899, 11, 30);
+                    dateObj = new Date(excelEpoch.getTime() + Number(s) * 86400000);
+                } else {
+                    const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+                    if (cnMatch) {
+                        const month = parseInt(cnMatch[1]);
+                        const day = parseInt(cnMatch[2]);
+                        const year = new Date().getFullYear(); // Assume current year if Chinese format
+                        dateObj = new Date(year, month - 1, day);
+                    }
+                }
+                
+                if (dateObj) {
+                    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    uploadedDetectedMonth = `${dateObj.getFullYear()}-${m}`;
+                }
+            }
+
             // Parse customer rows (starting from row index 2, skip header + 1 empty row)
             for (let i = 2; i < rawData.length; i++) {
                 const row = rawData[i];
@@ -174,6 +262,14 @@ function processFile(file) {
 
             parsedSheetsData[name] = { customers, headers };
         });
+
+        const monthElem = document.getElementById('detectedMonth');
+        if (uploadedDetectedMonth) {
+            monthElem.textContent = `Tháng nhận diện: ${uploadedDetectedMonth}`;
+            monthElem.style.display = 'block';
+        } else {
+            monthElem.style.display = 'none';
+        }
 
         // Enable upload button
         btnUpload.disabled = false;
@@ -247,30 +343,37 @@ async function saveToFirestore() {
     const sheetNames = parsedWorkbook.SheetNames;
     const allHeaders = parsedSheetsData[sheetNames[0]]?.headers || [];
 
+    if (!uploadedDetectedMonth) {
+        // Fallback to manual entry if parsing failed
+        uploadedDetectedMonth = prompt("Không tự động nhận diện được tháng từ file. Vui lòng nhập tháng theo định dạng YYYY-MM (vd: 2026-05):");
+        if (!uploadedDetectedMonth) {
+            showToast("Đã huỷ lưu dữ liệu vì không có tháng.", "error");
+            return;
+        }
+    }
+
     btnUpload.disabled = true;
-    showProgress(`Bắt đầu lưu dữ liệu cho ${machineName}...`);
+    showProgress(`Bắt đầu lưu dữ liệu tháng ${uploadedDetectedMonth} cho ${machineName}...`);
 
     try {
         const totalSteps = sheetNames.length + 2;
         let step = 0;
 
-        // 1. Chỉ xoá dữ liệu cũ CỦA MÁY NÀY thôi
-        setProgress(5, `Xoá dữ liệu cũ của ${machineName}...`);
+        // 1. Chỉ xoá dữ liệu cũ CỦA MÁY + THÁNG NÀY
+        setProgress(5, `Xoá dữ liệu tháng ${uploadedDetectedMonth} cũ của ${machineName}...`);
         
-        // Lấy tất cả doc và lọc ra doc thuộc máy này
-        // (Do firestore web không hỗ trợ startsWith query dễ dàng, ta dùng vòng lặp nếu doc không quá nhiều)
         const oldDocs = await db.collection('analytics_sheets').get();
         if (!oldDocs.empty) {
             const deleteBatch = db.batch();
             oldDocs.forEach(doc => {
-                if (doc.id.startsWith(`${machineId}_`)) {
+                if (doc.id.startsWith(`${machineId}_${uploadedDetectedMonth}_`)) {
                     deleteBatch.delete(doc.ref);
                 }
             });
             await deleteBatch.commit();
         }
 
-        // 2. Lưu từng sheet vào collection, với prefix là machine_X_
+        // 2. Lưu từng sheet vào collection, với prefix là machine_X_YYYY-MM_
         for (const name of sheetNames) {
             step++;
             const pct = Math.round((step / totalSteps) * 90) + 5;
@@ -280,7 +383,7 @@ async function saveToFirestore() {
             const docData = parsedSheetsData[name];
             const cleanData = { customers: docData.customers };
             
-            await db.collection('analytics_sheets').doc(`${machineId}_${name}`).set(cleanData);
+            await db.collection('analytics_sheets').doc(`${machineId}_${uploadedDetectedMonth}_${name}`).set(cleanData);
         }
 
         // 3. Đọc meta cũ, update meta mới (cộng dồn máy)
@@ -293,17 +396,27 @@ async function saveToFirestore() {
         
         // Đảm bảo cấu trúc mới
         if (!metaData.machines) {
-            // Chuyển đổi từ cũ sang mới (nếu cần)
             metaData = { 
                 machines: {},
                 lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
             };
         }
+        
+        if (!metaData.machines[selectedMachine]) {
+            metaData.machines[selectedMachine] = {
+                id: selectedMachine,
+                name: machineName,
+                months: {}
+            };
+        }
 
-        // Cập nhật record cho máy này
-        metaData.machines[selectedMachine] = {
-            id: selectedMachine,
-            name: machineName,
+        // Đảm bảo có months object (migration từ cũ)
+        if (!metaData.machines[selectedMachine].months) {
+            metaData.machines[selectedMachine].months = {};
+        }
+
+        // Cập nhật record tháng cho máy này
+        metaData.machines[selectedMachine].months[uploadedDetectedMonth] = {
             fileName: fileName,
             sheetNames: sheetNames,
             headers: allHeaders, // Lưu header ở meta để file dashboard load nhanh 
@@ -317,6 +430,9 @@ async function saveToFirestore() {
         setProgress(100, 'Hoàn thành!');
         showToast(`Đã lưu thành công dữ liệu cho ${machineName}!`, 'success');
         
+        uploadedDetectedMonth = ''; // Reset after success
+        document.getElementById('detectedMonth').style.display = 'none';
+
         setTimeout(() => {
             init();
             progressContainer.classList.remove('active');

@@ -153,6 +153,10 @@ const TRANSLATIONS = {
         kpi_high_all: '高频客户',
         kpi_low_all: '低频客户',
 
+        // Month selector
+        month_all: '📅 全部月份',
+        month_label: '月份：',
+
         // Updated at
         updated_at: '更新于：',
         data_loaded: '数据已加载',
@@ -311,6 +315,10 @@ const TRANSLATIONS = {
         kpi_total_customers_all: 'Tổng KH',
         kpi_high_all: 'KH GD Nhiều',
         kpi_low_all: 'KH GD Ít',
+
+        // Month selector
+        month_all: '📅 Tất cả tháng',
+        month_label: 'Tháng:',
 
         // Updated at
         updated_at: 'Cập nhật: ',
