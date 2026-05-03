@@ -177,6 +177,27 @@ const TRANSLATIONS = {
         edit_no_staff: '无法确定该客户所属员工。',
         edit_select_month_first: '请先选择一个月份才能编辑日历。',
         edit_input_label: '交易量',
+
+        // Add customer
+        btn_add_customer: '添加客户',
+        add_cust_title: '添加新客户',
+        add_cust_code: '客户编号',
+        add_cust_name: '客户名称',
+        add_cust_cardtype: '类型 (Card Type)',
+        add_cust_staff: '所属员工',
+        add_cust_save: '添加',
+        add_cust_saving: '正在添加...',
+        add_cust_success: '✅ 客户添加成功！',
+        add_cust_err_code: '请输入客户编号',
+        add_cust_err_name: '请输入客户名称',
+        add_cust_err_staff: '请选择员工',
+        add_cust_err_dup: '该编号已存在，请使用其他编号。',
+        add_cust_err_month: '请先选择一个具体月份。',
+
+        // Edit customer info
+        edit_cust_btn: '编辑信息',
+        edit_cust_title: '编辑客户信息',
+        edit_cust_success: '✅ 客户信息已更新！',
     },
 
     vi: {
@@ -352,6 +373,27 @@ const TRANSLATIONS = {
         edit_no_staff: 'Không xác định được nhân viên quản lý KH này.',
         edit_select_month_first: 'Vui lòng chọn 1 tháng cụ thể để sửa lịch.',
         edit_input_label: 'Sản lượng',
+
+        // Add customer
+        btn_add_customer: 'Thêm KH',
+        add_cust_title: 'Thêm Khách Hàng Mới',
+        add_cust_code: 'Mã KH',
+        add_cust_name: 'Tên KH',
+        add_cust_cardtype: 'Loại Hình (Card Type)',
+        add_cust_staff: 'Nhân Viên Quản Lý',
+        add_cust_save: 'Thêm',
+        add_cust_saving: 'Đang thêm...',
+        add_cust_success: '✅ Thêm khách hàng thành công!',
+        add_cust_err_code: 'Vui lòng nhập mã khách hàng',
+        add_cust_err_name: 'Vui lòng nhập tên khách hàng',
+        add_cust_err_staff: 'Vui lòng chọn nhân viên',
+        add_cust_err_dup: 'Mã KH này đã tồn tại, vui lòng dùng mã khác.',
+        add_cust_err_month: 'Vui lòng chọn 1 tháng cụ thể.',
+
+        // Edit customer info
+        edit_cust_btn: 'Sửa thông tin',
+        edit_cust_title: 'Sửa Thông Tin KH',
+        edit_cust_success: '✅ Đã cập nhật thông tin KH!',
     }
 };
 

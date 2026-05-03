@@ -275,6 +275,7 @@
                                 <option value="normal" data-i18n="filter_normal">普通</option>
                                 <option value="low" data-i18n="filter_low">低频</option>
                             </select>
+                            <button class="btn-add-customer" id="btnAddCustomer"><i class="fas fa-user-plus"></i> <span data-i18n="btn_add_customer">添加客户</span></button>
                             <button class="btn-export" id="btnExport"><i class="fas fa-file-csv"></i> <span data-i18n="btn_export">导出CSV</span></button>
                         </div>
                     </div>
@@ -470,7 +471,10 @@
                         </div>
                     </div>
                 </div>
-                <button class="detail-close" id="detailClose"><i class="fas fa-times"></i></button>
+                <div style="display:flex;gap:8px;align-items:flex-start;">
+                    <button class="detail-edit-btn" id="detailEditBtn" title="Edit"><i class="fas fa-pen"></i> <span data-i18n="edit_cust_btn">编辑信息</span></button>
+                    <button class="detail-close" id="detailClose"><i class="fas fa-times"></i></button>
+                </div>
             </div>
 
             <div class="detail-summary-row">
@@ -516,6 +520,43 @@
                     </thead>
                     <tbody></tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Customer Modal -->
+    <div class="add-customer-overlay" id="addCustomerModal">
+        <div class="add-customer-modal">
+            <div class="add-customer-header">
+                <h2><i class="fas fa-user-plus"></i> <span data-i18n="add_cust_title">添加新客户</span></h2>
+                <button class="detail-close" id="addCustomerClose"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="add-customer-form">
+                <div class="add-form-row">
+                    <label data-i18n="add_cust_code">客户编号</label>
+                    <input type="text" id="addCustCode" placeholder="#00XXX" autocomplete="off" />
+                </div>
+                <div class="add-form-row">
+                    <label data-i18n="add_cust_name">客户名称</label>
+                    <input type="text" id="addCustName" placeholder="" autocomplete="off" />
+                </div>
+                <div class="add-form-row">
+                    <label data-i18n="add_cust_cardtype">类型 (Card Type)</label>
+                    <input type="text" id="addCustCardType" placeholder="apple, steam, razer..." autocomplete="off" />
+                </div>
+                <div class="add-form-row">
+                    <label data-i18n="add_cust_staff">所属员工</label>
+                    <select id="addCustStaff"></select>
+                </div>
+                <div id="addCustError" class="add-form-error" style="display:none;"></div>
+                <div class="add-form-actions">
+                    <button class="cal-edit-btn cal-edit-cancel" id="addCustCancelBtn">
+                        <i class="fas fa-times"></i> <span data-i18n="edit_cancel">取消</span>
+                    </button>
+                    <button class="cal-edit-btn cal-edit-save" id="addCustSaveBtn">
+                        <i class="fas fa-check"></i> <span data-i18n="add_cust_save">添加</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>

@@ -1440,3 +1440,381 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
         closeDayEditPopup();
     }
 }
+
+// ══════════════════════════════════════════════════
+// ══════ ADD NEW CUSTOMER ═════════════════════════
+// ══════════════════════════════════════════════════
+
+function openAddCustomerModal() {
+    const modal = $('addCustomerModal');
+
+    // Đảm bảo modal nằm ở body level (tránh bị ảnh hưởng bởi parent transforms)
+    if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+    }
+
+    // Force inline styles để đảm bảo fixed overlay hiện đúng
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(11,20,55,0.55);backdrop-filter:blur(6px);z-index:99999;display:flex;justify-content:center;align-items:center;padding:20px;';
+
+    // Style inner modal box
+    const innerModal = modal.querySelector('.add-customer-modal');
+    if (innerModal) {
+        innerModal.style.cssText = 'background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.25);width:100%;max-width:460px;padding:28px 32px 32px;animation:slideUp 0.3s cubic-bezier(0.4,0,0.2,1);';
+    }
+
+    // Kiểm tra phải chọn tháng cụ thể
+    if (currentMonthKey === '__all__') {
+        alert(t('add_cust_err_month'));
+        return;
+    }
+
+    // Điền danh sách nhân viên vào dropdown
+    const staffSelect = $('addCustStaff');
+    staffSelect.innerHTML = '';
+    const sheetNames = Object.keys(allSheetsData).sort();
+    if (sheetNames.length === 0) {
+        alert(t('add_cust_err_staff'));
+        return;
+    }
+    sheetNames.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        staffSelect.appendChild(opt);
+    });
+
+    // Reset form
+    $('addCustCode').value = '';
+    $('addCustName').value = '';
+    $('addCustCardType').value = '';
+    $('addCustError').style.display = 'none';
+
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    setTimeout(() => $('addCustCode').focus(), 100);
+}
+
+function closeAddCustomerModal() {
+    const modal = $('addCustomerModal');
+    modal.classList.remove('active');
+    modal.style.cssText = 'display:none;';
+    document.body.style.overflow = '';
+}
+
+async function saveNewCustomer() {
+    const code = $('addCustCode').value.trim();
+    const name = $('addCustName').value.trim();
+    const cardType = $('addCustCardType').value.trim();
+    const staffName = $('addCustStaff').value;
+    const errEl = $('addCustError');
+
+    // Validate
+    if (!code) { errEl.textContent = t('add_cust_err_code'); errEl.style.display = 'block'; return; }
+    if (!name) { errEl.textContent = t('add_cust_err_name'); errEl.style.display = 'block'; return; }
+    if (!staffName) { errEl.textContent = t('add_cust_err_staff'); errEl.style.display = 'block'; return; }
+
+    // Check trùng mã
+    const existingSheet = allSheetsData[staffName];
+    if (existingSheet) {
+        const dup = (existingSheet.customers || []).some(c =>
+            String(c.code || '').trim().toLowerCase() === code.toLowerCase()
+        );
+        if (dup) { errEl.textContent = t('add_cust_err_dup'); errEl.style.display = 'block'; return; }
+    }
+
+    errEl.style.display = 'none';
+
+    // Disable button
+    const saveBtn = $('addCustSaveBtn');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('add_cust_saving')}`;
+
+    const machineId = window._currentMachineId;
+    const monthKey = currentMonthKey;
+    const docId = `machine_${machineId}_${monthKey}_${staffName}`;
+
+    const newCustomer = {
+        code: code,
+        name: name,
+        cardType: cardType,
+        total: 0,
+        daily: {}
+    };
+
+    try {
+        const docRef = db.collection('analytics_sheets').doc(docId);
+        const doc = await docRef.get();
+
+        if (doc.exists) {
+            // Thêm vào mảng customers hiện tại
+            const data = doc.data();
+            const customers = data.customers || [];
+            customers.push(newCustomer);
+            await docRef.update({ customers });
+        } else {
+            // Tạo document mới
+            await docRef.set({ customers: [newCustomer] });
+
+            // Cập nhật meta: thêm sheetName nếu chưa có
+            try {
+                const monthMeta = systemMeta?.machines?.[`machine_${machineId}`]?.months?.[monthKey];
+                if (monthMeta) {
+                    const updatedSheets = [...new Set([...(monthMeta.sheetNames || []), staffName])];
+                    monthMeta.sheetNames = updatedSheets;
+                    await db.collection('analytics').doc('meta').update({
+                        [`machines.machine_${machineId}.months.${monthKey}.sheetNames`]: updatedSheets
+                    });
+                }
+            } catch (metaErr) {
+                console.warn('Meta sheetNames update failed:', metaErr);
+            }
+        }
+
+        // ── Cập nhật local state ──
+        if (!allSheetsData[staffName]) {
+            allSheetsData[staffName] = { customers: [] };
+        }
+        allSheetsData[staffName].customers.push({ ...newCustomer });
+
+        // Reload current view
+        loadSheetData(sheetSelect.value);
+
+        // Đóng modal
+        closeAddCustomerModal();
+
+        // Hiện thông báo thành công
+        alert(t('add_cust_success'));
+
+        console.log(`[ADD] New customer ${code} - ${name} added to ${docId}`);
+
+    } catch (err) {
+        console.error('Add customer error:', err);
+        errEl.textContent = 'Lỗi: ' + err.message;
+        errEl.style.display = 'block';
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = `<i class="fas fa-check"></i> ${t('add_cust_save')}`;
+    }
+}
+
+// ── Event listeners cho Add Customer ──
+$('btnAddCustomer').addEventListener('click', openAddCustomerModal);
+$('addCustomerClose').addEventListener('click', closeAddCustomerModal);
+$('addCustCancelBtn').addEventListener('click', closeAddCustomerModal);
+$('addCustSaveBtn').addEventListener('click', saveNewCustomer);
+$('addCustomerModal').addEventListener('click', e => {
+    if (e.target === $('addCustomerModal')) closeAddCustomerModal();
+});
+
+// Enter trong form = save
+['addCustCode', 'addCustName', 'addCustCardType'].forEach(id => {
+    $(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); saveNewCustomer(); }
+    });
+});
+
+// ══════════════════════════════════════════════════
+// ══════ EDIT CUSTOMER INFO ═══════════════════════
+// ══════════════════════════════════════════════════
+
+let _isEditingCustomerInfo = false;
+
+function enterEditCustomerMode() {
+    if (!_detailCurrentItem || _isEditingCustomerInfo) return;
+    _isEditingCustomerInfo = true;
+
+    const item = _detailCurrentItem;
+    const nameEl = $('detailName');
+    const codeEl = $('detailCode');
+    const cardEl = $('detailCardType');
+    const editBtn = $('detailEditBtn');
+
+    // Lưu lại giá trị gốc
+    const origName = nameEl.textContent;
+    const origCode = codeEl.textContent;
+    const origCard = cardEl.textContent;
+
+    // Thay thế text bằng input
+    nameEl.innerHTML = `<input type="text" class="detail-edit-input edit-name" id="editCustName" value="${origName.replace(/"/g, '&quot;')}" />`;
+    codeEl.innerHTML = `<input type="text" class="detail-edit-input edit-code" id="editCustCode" value="${origCode.replace(/"/g, '&quot;')}" />`;
+    cardEl.innerHTML = `<input type="text" class="detail-edit-input edit-cardtype" id="editCustCardType" value="${origCard.replace(/"/g, '&quot;')}" />`;
+
+    // Đổi nút Edit thành Save/Cancel
+    editBtn.outerHTML = `
+        <div class="detail-edit-actions" id="editCustActions">
+            <button class="cal-edit-btn cal-edit-cancel" id="editCustCancelBtn" style="padding:8px 14px;font-size:12px;">
+                <i class="fas fa-times"></i> ${t('edit_cancel')}
+            </button>
+            <button class="cal-edit-btn cal-edit-save" id="editCustSaveBtn" style="padding:8px 14px;font-size:12px;">
+                <i class="fas fa-check"></i> ${t('edit_save')}
+            </button>
+        </div>
+    `;
+
+    // Focus vào name input
+    setTimeout(() => $('editCustName')?.focus(), 50);
+
+    // Cancel handler
+    $('editCustCancelBtn').addEventListener('click', () => {
+        exitEditCustomerMode(origName, origCode, origCard);
+    });
+
+    // Save handler
+    $('editCustSaveBtn').addEventListener('click', () => {
+        saveCustomerInfo(origCode);
+    });
+
+    // Enter to save
+    ['editCustName', 'editCustCode', 'editCustCardType'].forEach(id => {
+        const el = $(id);
+        if (el) el.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); saveCustomerInfo(origCode); }
+            if (e.key === 'Escape') exitEditCustomerMode(origName, origCode, origCard);
+        });
+    });
+}
+
+function exitEditCustomerMode(name, code, card) {
+    _isEditingCustomerInfo = false;
+    $('detailName').textContent = name;
+    $('detailCode').textContent = code;
+    $('detailCardType').textContent = card;
+
+    // Khôi phục nút Edit
+    const actionsEl = $('editCustActions');
+    if (actionsEl) {
+        actionsEl.outerHTML = `<button class="detail-edit-btn" id="detailEditBtn" title="Edit"><i class="fas fa-pen"></i> <span data-i18n="edit_cust_btn">${t('edit_cust_btn')}</span></button>`;
+        $('detailEditBtn').addEventListener('click', enterEditCustomerMode);
+    }
+}
+
+async function saveCustomerInfo(origCode) {
+    const newName = ($('editCustName')?.value || '').trim();
+    const newCode = ($('editCustCode')?.value || '').trim();
+    const newCard = ($('editCustCardType')?.value || '').trim();
+
+    if (!newName || !newCode) {
+        alert(t('add_cust_err_name'));
+        return;
+    }
+
+    const saveBtn = $('editCustSaveBtn');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('edit_saving')}`;
+    }
+
+    const customerKey = String(_detailCurrentItem.code || _detailCurrentItem.id || _detailCurrentItem.name || '').trim();
+    const machineId = window._currentMachineId;
+
+    try {
+        // Cập nhật tất cả Firestore docs chứa khách hàng này
+        const staffName = getCustomerStaffName();
+        const docsToUpdate = [];
+
+        // Tìm tất cả docs có thể chứa KH này
+        if (currentMonthKey === '__all__') {
+            const machineMeta = systemMeta?.machines?.[`machine_${machineId}`];
+            if (machineMeta?.months) {
+                for (const [mKey, mData] of Object.entries(machineMeta.months)) {
+                    (mData.sheetNames || []).forEach(s => {
+                        docsToUpdate.push(`machine_${machineId}_${mKey}_${s}`);
+                    });
+                }
+            }
+        } else {
+            // Chỉ tháng hiện tại
+            const sheetNames = Object.keys(allSheetsData);
+            sheetNames.forEach(s => {
+                docsToUpdate.push(`machine_${machineId}_${currentMonthKey}_${s}`);
+            });
+        }
+
+        // Update từng doc
+        let updatedCount = 0;
+        for (const docId of docsToUpdate) {
+            try {
+                const docRef = db.collection('analytics_sheets').doc(docId);
+                const doc = await docRef.get();
+                if (!doc.exists) continue;
+
+                const data = doc.data();
+                const customers = data.customers || [];
+                let changed = false;
+
+                customers.forEach(c => {
+                    const k = String(c.code || c.id || c.name || '').trim();
+                    if (k === customerKey) {
+                        c.code = newCode;
+                        c.name = newName;
+                        c.cardType = newCard;
+                        changed = true;
+                    }
+                });
+
+                if (changed) {
+                    await docRef.update({ customers });
+                    updatedCount++;
+                }
+            } catch (docErr) {
+                console.warn(`Failed to update ${docId}:`, docErr);
+            }
+        }
+
+        // ── Cập nhật local state ──
+        // allSheetsData
+        for (const [sheetName, sheet] of Object.entries(allSheetsData)) {
+            (sheet.customers || []).forEach(c => {
+                const k = String(c.code || c.id || c.name || '').trim();
+                if (k === customerKey) {
+                    c.code = newCode;
+                    c.name = newName;
+                    c.cardType = newCard;
+                }
+            });
+        }
+
+        // currentSheetData
+        currentSheetData.forEach(c => {
+            const k = String(c.code || c.id || c.name || '').trim();
+            if (k === customerKey) {
+                c.code = newCode;
+                c.name = newName;
+                c.cardType = newCard;
+            }
+        });
+
+        // _detailCurrentItem
+        _detailCurrentItem.code = newCode;
+        _detailCurrentItem.name = newName;
+        _detailCurrentItem.cardType = newCard;
+
+        // Thoát edit mode với giá trị mới
+        exitEditCustomerMode(newName, newCode, newCard);
+
+        // Cập nhật avatar
+        const avatarEl = $('detailAvatar');
+        if (avatarEl) {
+            const firstChar = (newName || 'KH').charAt(0).toUpperCase();
+            avatarEl.textContent = firstChar;
+        }
+
+        // Re-render bảng
+        analyzeAndRender();
+
+        alert(t('edit_cust_success'));
+        console.log(`[EDIT-INFO] Updated ${customerKey} → code=${newCode}, name=${newName}, card=${newCard} (${updatedCount} docs)`);
+
+    } catch (err) {
+        console.error('Edit customer info error:', err);
+        alert('Lỗi: ' + err.message);
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i class="fas fa-check"></i> ${t('edit_save')}`;
+        }
+    }
+}
+
+// Event listener cho Edit button
+$('detailEditBtn').addEventListener('click', enterEditCustomerMode);
