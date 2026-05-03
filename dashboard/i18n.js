@@ -165,6 +165,18 @@ const TRANSLATIONS = {
         detail_active_days: '交易天数',
         detail_avg_daily: '日均',
         detail_select_month: '选择月份：',
+
+        // Inline day editing
+        edit_day_title: '📝 编辑',
+        edit_save: '保存',
+        edit_cancel: '取消',
+        edit_saving: '保存中...',
+        edit_success: '✅ 已保存！',
+        edit_doc_not_found: '找不到该月份的数据文档，无法编辑。',
+        edit_customer_not_found: '在数据中找不到该客户。',
+        edit_no_staff: '无法确定该客户所属员工。',
+        edit_select_month_first: '请先选择一个月份才能编辑日历。',
+        edit_input_label: '交易量',
     },
 
     vi: {
@@ -328,6 +340,18 @@ const TRANSLATIONS = {
         detail_active_days: 'Số Ngày GD',
         detail_avg_daily: 'TB / Ngày',
         detail_select_month: 'Chọn tháng:',
+
+        // Inline day editing
+        edit_day_title: '📝 Sửa ngày',
+        edit_save: 'Lưu',
+        edit_cancel: 'Hủy',
+        edit_saving: 'Đang lưu...',
+        edit_success: '✅ Đã lưu!',
+        edit_doc_not_found: 'Không tìm thấy dữ liệu tháng này, không thể sửa.',
+        edit_customer_not_found: 'Không tìm thấy khách hàng trong dữ liệu.',
+        edit_no_staff: 'Không xác định được nhân viên quản lý KH này.',
+        edit_select_month_first: 'Vui lòng chọn 1 tháng cụ thể để sửa lịch.',
+        edit_input_label: 'Sản lượng',
     }
 };
 

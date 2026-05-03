@@ -1040,10 +1040,10 @@ function renderDetailForMonth(months, monthKeys) {
         const firstDay = new Date(year, month - 1, 1).getDay();
         const daysInMonth = new Date(year, month, 0).getDate();
 
-        // Build lookup: day → value
+        // Build lookup: day → {value, headerKey}
         const dayLookup = {};
         entriesToShow.forEach(e => {
-            dayLookup[e.date.getDate()] = e.value;
+            dayLookup[e.date.getDate()] = { value: e.value, headerKey: e.headerKey };
         });
 
         // Empty cells before first day
@@ -1052,15 +1052,24 @@ function renderDetailForMonth(months, monthKeys) {
         }
 
         for (let d = 1; d <= daysInMonth; d++) {
-            const val = dayLookup[d] || 0;
-            let cls = 'detail-cal-day';
+            const info = dayLookup[d] || { value: 0, headerKey: null };
+            const val = info.value;
+            let cls = 'detail-cal-day editable';
             if (val > 0) {
                 cls += val >= maxVal * 0.5 ? ' has-tx-high' : ' has-tx';
             } else {
                 cls += ' no-tx';
             }
             const valDisplay = val > 0 ? `<span class="cal-val">${val}</span>` : '';
-            calendar.innerHTML += `<div class="${cls}"><span class="cal-date">${d}</span>${valDisplay}</div>`;
+            const cell = document.createElement('div');
+            cell.className = cls;
+            cell.setAttribute('data-day', d);
+            cell.innerHTML = `<span class="cal-date">${d}</span>${valDisplay}`;
+            cell.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showDayEditPopup(cell, d, year, month);
+            });
+            calendar.appendChild(cell);
         }
     } else {
         // All months: no calendar, only table
@@ -1112,5 +1121,322 @@ $('detailModal').addEventListener('click', e => {
     if (e.target === $('detailModal')) closeCustomerDetail();
 });
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && $('detailModal').classList.contains('active')) closeCustomerDetail();
+    if (e.key === 'Escape') {
+        // Nếu đang edit popup → chỉ đóng popup, không đóng modal
+        if (_editPopupEl) { closeDayEditPopup(); return; }
+        if ($('detailModal').classList.contains('active')) closeCustomerDetail();
+    }
 });
+
+// ══════════════════════════════════════════════════
+// ══════ INLINE DAY EDITING ═══════════════════════
+// ══════════════════════════════════════════════════
+
+let _editPopupEl = null;
+
+// Xác định tên nhân viên quản lý khách hàng hiện tại
+function getCustomerStaffName() {
+    if (sheetSelect.value !== '__all__') return sheetSelect.value;
+    if (_detailCurrentItem && _detailCurrentItem._staffList && _detailCurrentItem._staffList.length > 0) {
+        return _detailCurrentItem._staffList[0];
+    }
+    const key = String(_detailCurrentItem.code || _detailCurrentItem.id || _detailCurrentItem.name || '').trim();
+    for (const [sheetName, sheet] of Object.entries(allSheetsData)) {
+        if ((sheet.customers || []).some(c => String(c.code || c.id || c.name || '').trim() === key)) {
+            return sheetName;
+        }
+    }
+    return null;
+}
+
+// Tạo header key cho ngày mới, dựa theo format của dữ liệu đã có
+function getHeaderKeyForDate(year, month, day) {
+    const existing = dailyHeaders.filter(h => {
+        const d = parseHeaderToDate(h);
+        return d && d.getMonth() === month - 1 && d.getFullYear() === year;
+    });
+    if (existing.length > 0) {
+        const sample = String(existing[0]).trim();
+        if (!isNaN(sample) && Number(sample) > 40000) {
+            const target = new Date(year, month - 1, day);
+            const epoch = new Date(1899, 11, 30);
+            return String(Math.round((target.getTime() - epoch.getTime()) / 86400000));
+        }
+    }
+    return `${month}月${day}日`;
+}
+
+// Tìm header key đã tồn tại cho 1 ngày cụ thể
+function findExistingHeaderKey(dayNum, month, year) {
+    for (const h of dailyHeaders) {
+        const d = parseHeaderToDate(h);
+        if (d && d.getDate() === dayNum && d.getMonth() === month - 1 && d.getFullYear() === year) {
+            return h;
+        }
+    }
+    return null;
+}
+
+// Hiển thị popup chỉnh sửa tại ô ngày
+function showDayEditPopup(cell, dayNum, year, month) {
+    closeDayEditPopup();
+
+    const selectedMonth = $('detailMonthSelect').value;
+    if (selectedMonth === '__all__') {
+        alert(t('edit_select_month_first'));
+        return;
+    }
+
+    const daily = _detailCurrentItem.daily || {};
+    const existingKey = findExistingHeaderKey(dayNum, month, year);
+    const currentValue = existingKey ? (daily[existingKey] || 0) : 0;
+
+    // Đánh dấu cell đang edit
+    document.querySelectorAll('.detail-cal-day.editing').forEach(el => el.classList.remove('editing'));
+    cell.classList.add('editing');
+
+    const popup = document.createElement('div');
+    popup.className = 'cal-edit-popup';
+    popup.innerHTML = `
+        <div class="cal-edit-title">
+            <i class="fas fa-edit"></i>
+            ${t('edit_day_title')} ${String(dayNum).padStart(2,'0')}/${String(month).padStart(2,'0')}
+        </div>
+        <div class="cal-edit-input-wrap">
+            <input type="number" class="cal-edit-input" id="calEditInput"
+                   value="${currentValue}" min="0" step="1" placeholder="0" autocomplete="off" />
+            <div class="cal-edit-label">${t('edit_input_label')}</div>
+        </div>
+        <div class="cal-edit-actions">
+            <button class="cal-edit-btn cal-edit-cancel" id="calEditCancelBtn">
+                <i class="fas fa-times"></i> ${t('edit_cancel')}
+            </button>
+            <button class="cal-edit-btn cal-edit-save" id="calEditSaveBtn">
+                <i class="fas fa-check"></i> ${t('edit_save')}
+            </button>
+        </div>
+    `;
+
+    const calendar = $('detailCalendar');
+    calendar.style.position = 'relative';
+    calendar.appendChild(popup);
+
+    // Vị trí popup gần ô cell
+    const cellRect = cell.getBoundingClientRect();
+    const calRect = calendar.getBoundingClientRect();
+    let left = cellRect.left - calRect.left + cellRect.width / 2 - 105;
+    let top = cellRect.bottom - calRect.top + 8;
+    if (left < 0) left = 4;
+    if (left + 210 > calRect.width) left = calRect.width - 214;
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+
+    _editPopupEl = popup;
+
+    // Focus input
+    setTimeout(() => {
+        const input = $('calEditInput');
+        if (input) { input.focus(); input.select(); }
+    }, 60);
+
+    // Cancel
+    popup.querySelector('#calEditCancelBtn').addEventListener('click', () => closeDayEditPopup());
+
+    // Save
+    popup.querySelector('#calEditSaveBtn').addEventListener('click', () => {
+        const val = parseInt($('calEditInput').value) || 0;
+        saveDayTransaction(dayNum, year, month, val, cell);
+    });
+
+    // Enter = save, Escape = cancel
+    popup.querySelector('.cal-edit-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = parseInt($('calEditInput').value) || 0;
+            saveDayTransaction(dayNum, year, month, val, cell);
+        }
+        if (e.key === 'Escape') closeDayEditPopup();
+    });
+
+    // Click bên ngoài popup → đóng
+    setTimeout(() => {
+        const outsideHandler = (e) => {
+            if (_editPopupEl && !_editPopupEl.contains(e.target) && !cell.contains(e.target)) {
+                closeDayEditPopup();
+                document.removeEventListener('click', outsideHandler);
+            }
+        };
+        document.addEventListener('click', outsideHandler);
+    }, 100);
+}
+
+function closeDayEditPopup() {
+    if (_editPopupEl) {
+        _editPopupEl.remove();
+        _editPopupEl = null;
+    }
+    document.querySelectorAll('.detail-cal-day.editing').forEach(el => el.classList.remove('editing'));
+}
+
+// ── Lưu giao dịch ngày vào Firestore ──
+async function saveDayTransaction(dayNum, year, month, newValue, cell) {
+    const saveBtn = document.querySelector('#calEditSaveBtn');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('edit_saving')}`;
+    }
+
+    const staffName = getCustomerStaffName();
+    if (!staffName) {
+        alert(t('edit_no_staff'));
+        closeDayEditPopup();
+        return;
+    }
+
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+    const machineId = window._currentMachineId;
+    const docId = `machine_${machineId}_${monthKey}_${staffName}`;
+    const customerKey = String(_detailCurrentItem.code || _detailCurrentItem.id || _detailCurrentItem.name || '').trim();
+
+    // Xác định header key
+    let headerKey = findExistingHeaderKey(dayNum, month, year);
+    if (!headerKey) headerKey = getHeaderKeyForDate(year, month, dayNum);
+
+    try {
+        const docRef = db.collection('analytics_sheets').doc(docId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            alert(t('edit_doc_not_found'));
+            closeDayEditPopup();
+            return;
+        }
+
+        const data = doc.data();
+        const customers = data.customers || [];
+        let found = false;
+
+        customers.forEach(c => {
+            const k = String(c.code || c.id || c.name || '').trim();
+            if (k === customerKey) {
+                if (!c.daily) c.daily = {};
+                c.daily[headerKey] = newValue;
+                c.total = Object.values(c.daily).reduce((sum, v) => sum + (Number(v) || 0), 0);
+                found = true;
+            }
+        });
+
+        if (!found) {
+            alert(t('edit_customer_not_found'));
+            closeDayEditPopup();
+            return;
+        }
+
+        // Ghi lại vào Firestore
+        await docRef.update({ customers });
+
+        // Cập nhật header trong meta nếu là ngày mới
+        if (!dailyHeaders.includes(headerKey)) {
+            dailyHeaders.push(headerKey);
+            dailyHeaders.sort((a, b) => {
+                const parseD = (hk) => {
+                    const s = String(hk).trim();
+                    if (!isNaN(s) && Number(s) > 40000) return new Date(1899, 11, 30).getTime() + Number(s) * 86400000;
+                    const m = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+                    if (m) return new Date(new Date().getFullYear(), parseInt(m[1]) - 1, parseInt(m[2])).getTime();
+                    return 0;
+                };
+                return parseD(a) - parseD(b);
+            });
+
+            // Cập nhật meta trên Firestore
+            try {
+                const metaPath = `machines.machine_${machineId}.months.${monthKey}.headers`;
+                const monthMeta = systemMeta?.machines?.[`machine_${machineId}`]?.months?.[monthKey];
+                if (monthMeta) {
+                    const updatedHeaders = [...new Set([...(monthMeta.headers || []), headerKey])];
+                    monthMeta.headers = updatedHeaders;
+                    await db.collection('analytics').doc('meta').update({
+                        [`machines.machine_${machineId}.months.${monthKey}.headers`]: updatedHeaders
+                    });
+                }
+            } catch (metaErr) {
+                console.warn('Meta header update failed (non-critical):', metaErr);
+            }
+        }
+
+        // ── Cập nhật local state ──
+        // Update allSheetsData
+        const localSheet = allSheetsData[staffName];
+        if (localSheet) {
+            const localCustomers = localSheet.customers || [];
+            localCustomers.forEach(c => {
+                const k = String(c.code || c.id || c.name || '').trim();
+                if (k === customerKey) {
+                    if (!c.daily) c.daily = {};
+                    c.daily[headerKey] = newValue;
+                    c.total = Object.values(c.daily).reduce((sum, v) => sum + (Number(v) || 0), 0);
+                }
+            });
+        }
+
+        // Update _detailCurrentItem (item đang mở modal)
+        if (!_detailCurrentItem.daily) _detailCurrentItem.daily = {};
+        _detailCurrentItem.daily[headerKey] = newValue;
+        _detailCurrentItem.total = Object.values(_detailCurrentItem.daily)
+            .reduce((sum, v) => sum + (Number(v) || 0), 0);
+
+        // Cập nhật currentSheetData
+        currentSheetData.forEach(c => {
+            const k = String(c.code || c.id || c.name || '').trim();
+            if (k === customerKey) {
+                if (!c.daily) c.daily = {};
+                c.daily[headerKey] = newValue;
+                c.total = Object.values(c.daily).reduce((sum, v) => sum + (Number(v) || 0), 0);
+            }
+        });
+
+        // Đóng popup
+        closeDayEditPopup();
+
+        // Flash animation trên cell vừa save
+        if (cell) {
+            cell.classList.add('just-saved');
+            setTimeout(() => cell.classList.remove('just-saved'), 900);
+        }
+
+        // Re-render detail modal (calendar + summary + table)
+        const detailMonths = {};
+        const detailDateEntries = [];
+        dailyHeaders.forEach(h => {
+            const d = parseHeaderToDate(h);
+            if (d) detailDateEntries.push({ date: d, headerKey: h, value: _detailCurrentItem.daily[h] || 0 });
+        });
+        detailDateEntries.forEach(e => {
+            const key = `${e.date.getFullYear()}-${String(e.date.getMonth() + 1).padStart(2, '0')}`;
+            if (!detailMonths[key]) detailMonths[key] = [];
+            detailMonths[key].push(e);
+        });
+        const detailMonthKeys = Object.keys(detailMonths).sort();
+
+        // Update summary stats
+        const activeDays = detailDateEntries.filter(e => e.value > 0).length;
+        const totalVal = detailDateEntries.reduce((s, e) => s + e.value, 0);
+        $('detailTotal').textContent = fmt(totalVal);
+        $('detailActiveDays').textContent = activeDays;
+        $('detailAvgDaily').textContent = activeDays > 0 ? fmt(Math.round(totalVal / activeDays)) : '0';
+
+        // Re-render calendar and daily table
+        renderDetailForMonth(detailMonths, detailMonthKeys);
+
+        // Re-render main dashboard (KPI, charts, etc.)
+        analyzeAndRender();
+
+        console.log(`[EDIT] Saved ${headerKey} = ${newValue} for ${customerKey} in ${docId}`);
+
+    } catch (err) {
+        console.error('Save error:', err);
+        alert('Lỗi khi lưu: ' + err.message);
+        closeDayEditPopup();
+    }
+}

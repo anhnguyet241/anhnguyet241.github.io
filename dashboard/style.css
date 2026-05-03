@@ -1525,6 +1525,117 @@ table tbody tr:hover { background: rgba(0,102,255,0.03); }
     color: #ccc;
 }
 
+/* ---- Clickable Calendar Cells ---- */
+.detail-cal-day.editable {
+    cursor: pointer;
+    user-select: none;
+}
+.detail-cal-day.editable:hover {
+    transform: scale(1.08);
+    box-shadow: 0 3px 12px rgba(0,102,255,0.18);
+    z-index: 2;
+    border: 2px solid var(--primary);
+}
+.detail-cal-day.editable.no-tx:hover {
+    background: var(--blue-bg);
+    color: var(--primary);
+}
+.detail-cal-day.editable:hover::after {
+    content: '\270E';
+    position: absolute;
+    top: 3px; right: 4px;
+    font-size: 10px;
+    color: var(--primary);
+    opacity: 0.7;
+}
+.detail-cal-day.editing {
+    border: 2px solid var(--primary) !important;
+    box-shadow: 0 0 0 3px rgba(0,102,255,0.15);
+    transform: scale(1.08);
+}
+.cal-edit-popup {
+    position: absolute;
+    z-index: 100;
+    background: var(--bg-card-solid);
+    border-radius: 14px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    padding: 16px 18px;
+    width: 210px;
+    animation: calPopIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes calPopIn {
+    from { opacity: 0; transform: translateY(-8px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.cal-edit-popup::before {
+    content: '';
+    position: absolute;
+    top: -6px; left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 12px; height: 12px;
+    background: var(--bg-card-solid);
+    border-left: 1px solid var(--border-color);
+    border-top: 1px solid var(--border-color);
+}
+.cal-edit-title {
+    font-size: 13px; font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+}
+.cal-edit-input-wrap { margin-bottom: 12px; }
+.cal-edit-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--text-primary);
+    background: #f8f9fb;
+    outline: none;
+    transition: var(--transition);
+    text-align: center;
+}
+.cal-edit-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0,102,255,0.1);
+    background: white;
+}
+.cal-edit-label {
+    font-size: 11px; color: var(--text-secondary);
+    text-align: center; margin-top: 4px; font-weight: 500;
+}
+.cal-edit-actions { display: flex; gap: 8px; }
+.cal-edit-btn {
+    flex: 1; padding: 8px 12px;
+    border: none; border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    transition: var(--transition);
+}
+.cal-edit-btn.cal-edit-cancel { background: #f1f3f6; color: var(--text-secondary); }
+.cal-edit-btn.cal-edit-cancel:hover { background: #e2e5ea; }
+.cal-edit-btn.cal-edit-save {
+    background: linear-gradient(135deg, var(--primary), #3399ff);
+    color: white;
+    box-shadow: 0 3px 10px rgba(0,102,255,0.3);
+}
+.cal-edit-btn.cal-edit-save:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 16px rgba(0,102,255,0.4);
+}
+.cal-edit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+@keyframes cellSaveFlash {
+    0% { box-shadow: 0 0 0 0 rgba(0,200,83,0.5); }
+    50% { box-shadow: 0 0 0 8px rgba(0,200,83,0); }
+    100% { box-shadow: none; }
+}
+.detail-cal-day.just-saved { animation: cellSaveFlash 0.8s ease; }
+
 /* Detail daily table */
 .detail-table-wrap {
     max-height: 240px;
