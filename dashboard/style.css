@@ -42,7 +42,8 @@
     --sidebar-width: 220px;
     --sidebar-collapsed: 64px;
     --topbar-height: 64px;
-    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
+    --transition-transform: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -55,7 +56,7 @@ body {
     overflow-x: hidden;
 }
 
-/* ---- Background Animation ---- */
+/* ---- Background Decoration (static — no animation for performance) ---- */
 .bg-animation {
     position: fixed;
     top: 0; left: 0;
@@ -69,35 +70,27 @@ body {
     position: absolute;
     border-radius: 50%;
     filter: blur(80px);
-    opacity: 0.15;
-    animation: floatBg 20s ease-in-out infinite;
+    opacity: 0.12;
+    will-change: auto;
+    /* animation removed — massive GPU savings on Edge */
 }
 
 .bg-circle-1 {
     width: 500px; height: 500px;
     background: var(--primary);
     top: -100px; right: -100px;
-    animation-delay: 0s;
 }
 
 .bg-circle-2 {
     width: 400px; height: 400px;
     background: var(--accent);
     bottom: -80px; left: -80px;
-    animation-delay: -7s;
 }
 
 .bg-circle-3 {
     width: 300px; height: 300px;
     background: var(--purple);
-    top: 50%; left: 50%;
-    animation-delay: -14s;
-}
-
-@keyframes floatBg {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(30px, -30px) scale(1.05); }
-    66% { transform: translate(-20px, 20px) scale(0.95); }
+    top: 40%; left: 45%;
 }
 
 /* ---- Sidebar ---- */
@@ -243,8 +236,8 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 0 30px;
-    background: rgba(238,242,247,0.85);
-    backdrop-filter: blur(12px);
+    background: rgba(238,242,247,0.95);
+    /* backdrop-filter removed for perf — opaque bg instead */
     border-bottom: 1px solid var(--border-color);
     z-index: 50;
 }
@@ -426,15 +419,14 @@ body {
     animation: fadeInUp 0.5s ease;
 }
 
-/* ---- Glass Card ---- */
+/* ---- Glass Card (optimized — no backdrop-filter) ---- */
 .glass-card {
-    background: var(--bg-card);
-    backdrop-filter: blur(16px);
+    background: var(--bg-card-solid);
     border-radius: var(--radius);
     border: 1px solid var(--border-color);
     padding: 24px;
     box-shadow: var(--shadow-md);
-    transition: var(--transition);
+    transition: box-shadow 0.25s ease;
 }
 
 .glass-card:hover {
@@ -807,7 +799,6 @@ body {
 }
 
 .btn-export:hover {
-    transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(124,77,255,0.4);
 }
 
@@ -898,7 +889,7 @@ table td {
     color: var(--text-primary);
 }
 
-table tbody tr { transition: var(--transition); }
+table tbody tr { transition: background 0.15s ease; }
 table tbody tr:hover { background: rgba(0,102,255,0.03); }
 
 .sort-icon {
@@ -1644,14 +1635,6 @@ table tbody tr:hover { background: rgba(0,102,255,0.03); }
     border: 1px solid var(--border-color);
 }
 
-/* Detail daily table (duplicate removed) */
-.detail-table-wrap {
-    max-height: 240px;
-    overflow-y: auto;
-    border-radius: 10px;
-    border: 1px solid var(--border-color);
-}
-
 .detail-table-wrap table th {
     position: sticky;
     top: 0;
@@ -1665,7 +1648,6 @@ table tbody tr:hover { background: rgba(0,102,255,0.03); }
 
 #dataTable tbody tr:hover {
     background: rgba(0,102,255,0.06);
-    transform: translateX(2px);
 }
 
 /* Responsive */
@@ -1704,7 +1686,6 @@ table tbody tr:hover { background: rgba(0,102,255,0.03); }
     white-space: nowrap;
 }
 .btn-add-customer:hover {
-    transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0,200,83,0.4);
 }
 

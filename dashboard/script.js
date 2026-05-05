@@ -622,7 +622,6 @@ function renderTable() {
     const filter = filterCategory.value;
     const maxTotal = currentSheetData.length > 0 ? currentSheetData[0].total : 1;
     const tbody = document.querySelector('#dataTable tbody');
-    tbody.innerHTML = '';
 
     let filtered = currentSheetData.filter(item => {
         if (filter !== 'all' && item._category !== filter) return false;
@@ -630,6 +629,8 @@ function renderTable() {
         return true;
     });
 
+    // Use DocumentFragment to batch DOM insertions (avoids reflow per row)
+    const frag = document.createDocumentFragment();
     filtered.forEach((item, idx) => {
         const pct = maxTotal > 0 ? (item.total / maxTotal * 100) : 0;
         const barColor = item._category === 'high' ? 'var(--green)' : item._category === 'low' ? 'var(--red)' : 'var(--blue)';
@@ -646,8 +647,10 @@ function renderTable() {
             <td>${lastTxDisplay}</td>
             <td><div class="progress-bar-container"><div class="progress-bar-fill" style="width:${pct}%;background:${barColor};"></div></div></td>`;
         tr.addEventListener('click', () => openCustomerDetail(item));
-        tbody.appendChild(tr);
+        frag.appendChild(tr);
     });
+    tbody.innerHTML = '';
+    tbody.appendChild(frag);
     $('tableInfo').textContent = t('table_info', { filtered: filtered.length, total: currentSheetData.length });
 }
 
@@ -1818,3 +1821,102 @@ async function saveCustomerInfo(origCode) {
 
 // Event listener cho Edit button
 $('detailEditBtn').addEventListener('click', enterEditCustomerMode);
+
+// ══════════════════════════════════════════════════
+// ══════ DELETE CUSTOMER ══════════════════════════
+// ══════════════════════════════════════════════════
+
+async function deleteCustomer() {
+    const customerKey = String(_detailCurrentItem.code || _detailCurrentItem.id || _detailCurrentItem.name || '').trim();
+    if (!customerKey) return;
+
+    if (!confirm(t('delete_cust_confirm'))) {
+        return;
+    }
+
+    const deleteBtn = $('detailDeleteBtn');
+    if (deleteBtn) {
+        deleteBtn.disabled = true;
+        deleteBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
+    }
+
+    const machineId = window._currentMachineId;
+
+    try {
+        const docsToUpdate = [];
+
+        // Tìm tất cả docs có thể chứa KH này
+        if (currentMonthKey === '__all__') {
+            const machineMeta = systemMeta?.machines?.[`machine_${machineId}`];
+            if (machineMeta?.months) {
+                for (const [mKey, mData] of Object.entries(machineMeta.months)) {
+                    (mData.sheetNames || []).forEach(s => {
+                        docsToUpdate.push(`machine_${machineId}_${mKey}_${s}`);
+                    });
+                }
+            }
+        } else {
+            // Chỉ tháng hiện tại
+            const sheetNames = Object.keys(allSheetsData);
+            sheetNames.forEach(s => {
+                docsToUpdate.push(`machine_${machineId}_${currentMonthKey}_${s}`);
+            });
+        }
+
+        // Update từng doc
+        let updatedCount = 0;
+        for (const docId of docsToUpdate) {
+            try {
+                const docRef = db.collection('analytics_sheets').doc(docId);
+                const doc = await docRef.get();
+                if (!doc.exists) continue;
+
+                const data = doc.data();
+                const customers = data.customers || [];
+                const initialLength = customers.length;
+                
+                // Lọc bỏ khách hàng này
+                const newCustomers = customers.filter(c => String(c.code || c.id || c.name || '').trim() !== customerKey);
+
+                if (newCustomers.length !== initialLength) {
+                    await docRef.update({ customers: newCustomers });
+                    updatedCount++;
+                }
+            } catch (docErr) {
+                console.warn(`Failed to update ${docId}:`, docErr);
+            }
+        }
+
+        // ── Cập nhật local state ──
+        // allSheetsData
+        for (const [sheetName, sheet] of Object.entries(allSheetsData)) {
+            if (sheet.customers) {
+                sheet.customers = sheet.customers.filter(c => String(c.code || c.id || c.name || '').trim() !== customerKey);
+            }
+        }
+
+        // currentSheetData
+        currentSheetData = currentSheetData.filter(c => String(c.code || c.id || c.name || '').trim() !== customerKey);
+
+        // Đóng modal
+        closeCustomerDetail();
+
+        // Re-render bảng
+        analyzeAndRender();
+
+        alert(t('delete_cust_success'));
+        console.log(`[DELETE] Removed ${customerKey} (${updatedCount} docs)`);
+
+    } catch (err) {
+        console.error('Delete customer error:', err);
+        alert('Lỗi: ' + err.message);
+    } finally {
+        if (deleteBtn) {
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = `<i class="fas fa-trash"></i> <span data-i18n="delete_cust_btn">${t('delete_cust_btn')}</span>`;
+        }
+    }
+}
+
+// Event listener cho Delete button
+$('detailDeleteBtn')?.addEventListener('click', deleteCustomer);

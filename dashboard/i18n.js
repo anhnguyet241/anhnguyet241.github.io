@@ -198,6 +198,11 @@ const TRANSLATIONS = {
         edit_cust_btn: '编辑信息',
         edit_cust_title: '编辑客户信息',
         edit_cust_success: '✅ 客户信息已更新！',
+
+        // Delete customer
+        delete_cust_btn: '删除客户',
+        delete_cust_confirm: '确定要删除此客户吗？此操作不可撤销！',
+        delete_cust_success: '✅ 客户已删除！',
     },
 
     vi: {
@@ -394,6 +399,11 @@ const TRANSLATIONS = {
         edit_cust_btn: 'Sửa thông tin',
         edit_cust_title: 'Sửa Thông Tin KH',
         edit_cust_success: '✅ Đã cập nhật thông tin KH!',
+
+        // Delete customer
+        delete_cust_btn: 'Xóa khách hàng',
+        delete_cust_confirm: 'Bạn có chắc chắn muốn xóa khách hàng này không? Hành động này không thể hoàn tác!',
+        delete_cust_success: '✅ Đã xóa khách hàng!',
     }
 };
 
