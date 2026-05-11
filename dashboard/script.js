@@ -1508,17 +1508,14 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
         const docRef = db.collection('analytics_sheets').doc(docId);
         const doc = await docRef.get();
 
-        if (!doc.exists) {
-            alert(t('edit_doc_not_found'));
-            closeDayEditPopup();
-            return;
+        let customers = [];
+        if (doc.exists) {
+            customers = doc.data().customers || [];
         }
 
-        const data = doc.data();
-        const customers = data.customers || [];
         let found = false;
-
         let oldValLog = 0;
+        
         customers.forEach(c => {
             const k = String(c.code || c.id || c.name || '').trim();
             if (k === customerKey) {
@@ -1531,13 +1528,36 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
         });
 
         if (!found) {
-            alert(t('edit_customer_not_found'));
-            closeDayEditPopup();
-            return;
+            // Khách hàng chưa tồn tại trong tháng này -> Tạo mới
+            const newCustomer = {
+                code: _detailCurrentItem.code,
+                name: _detailCurrentItem.name,
+                cardType: _detailCurrentItem.cardType,
+                daily: { [headerKey]: newValue },
+                total: Number(newValue) || 0
+            };
+            customers.push(newCustomer);
         }
 
         // Ghi lại vào Firestore
-        await docRef.update({ customers });
+        if (doc.exists) {
+            await docRef.update({ customers });
+        } else {
+            await docRef.set({ customers });
+            // Cập nhật meta thêm sheetNames nếu chưa có
+            try {
+                const monthMeta = systemMeta?.machines?.[`machine_${machineId}`]?.months?.[monthKey];
+                if (monthMeta) {
+                    const updatedSheets = [...new Set([...(monthMeta.sheetNames || []), staffName])];
+                    monthMeta.sheetNames = updatedSheets;
+                    await db.collection('analytics').doc('meta').update({
+                        [`machines.machine_${machineId}.months.${monthKey}.sheetNames`]: updatedSheets
+                    });
+                }
+            } catch (metaErr) {
+                console.warn('Meta sheetNames update failed:', metaErr);
+            }
+        }
 
         // Ghi Audit Log
         if (typeof logAudit === 'function') {
