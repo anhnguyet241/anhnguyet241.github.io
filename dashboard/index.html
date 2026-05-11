@@ -114,6 +114,17 @@
                     <span id="dataInfoText" data-i18n="loading">加载中...</span>
                 </div>
 
+                <!-- User Profile -->
+                <div class="user-profile" id="userProfile" style="display: flex; align-items: center; gap: 10px; margin-right: 15px; padding: 5px 12px; background: rgba(255,255,255,0.7); border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05);">
+                    <div class="avatar" id="displayUserAvatar" style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-info" style="display: flex; flex-direction: column; line-height: 1.2;">
+                        <span id="displayUserEmail" style="font-size: 13px; font-weight: 600; color: var(--text-primary);">...</span>
+                        <span id="displayUserRole" style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500;">...</span>
+                    </div>
+                </div>
+
                 <!-- Language Switch Button -->
                 <button class="lang-switch" id="langSwitch">
                     <span id="langFlag" class="lang-flag">🇻🇳</span> 

@@ -89,6 +89,15 @@ document.addEventListener('DOMContentLoaded', () => {
             
             authOverlay.style.display = 'none';
 
+            // Update User Profile UI if elements exist
+            const emailPrefix = user.email.split('@')[0];
+            const displayEmail = document.getElementById('displayUserEmail');
+            const displayRole = document.getElementById('displayUserRole');
+            const displayAvatar = document.getElementById('displayUserAvatar');
+            if (displayEmail) displayEmail.textContent = emailPrefix;
+            if (displayRole) displayRole.textContent = window.currentUserRole;
+            if (displayAvatar) displayAvatar.innerHTML = emailPrefix.charAt(0).toUpperCase();
+
             // Kích hoạt event cho các script khác (ví dụ script.js) biết đã có Auth
             document.dispatchEvent(new CustomEvent('authReady'));
 
