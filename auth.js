@@ -75,7 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.currentUserEmail = user.email;
             try {
                 // Fetch user role
-                const userDoc = await db.collection('users').doc(user.email).get();
+                const emailLower = user.email.toLowerCase();
+                const userDoc = await db.collection('users').doc(emailLower).get();
                 if (userDoc.exists) {
                     window.currentUserRole = userDoc.data().role || 'viewer';
                 } else {

@@ -2197,7 +2197,12 @@ $('detailDeleteBtn')?.addEventListener('click', deleteCustomer);
 // =============================================
 // RBAC / UI PERMISSIONS & AUDIT LOGS
 // =============================================
-document.addEventListener('authReady', applyPermissions);
+firebase.auth().onAuthStateChanged((user) => {
+    if (user) {
+        // Wait briefly for auth.js to set window.currentUserRole
+        setTimeout(applyPermissions, 500);
+    }
+});
 
 function applyPermissions() {
     const role = window.currentUserRole || 'viewer';

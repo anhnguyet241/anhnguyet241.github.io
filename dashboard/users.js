@@ -12,14 +12,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             window.currentUserEmail = user.email;
             try {
-                const userDoc = await db.collection('users').doc(user.email).get();
+                const emailLower = user.email.toLowerCase();
+                const userDoc = await db.collection('users').doc(emailLower).get();
                 if (userDoc.exists) {
                     window.currentUserRole = userDoc.data().role || 'viewer';
                     
                     // Nếu không phải admin, đá ra ngoài
                     if (window.currentUserRole !== 'admin') {
-                        alert('Bạn không có quyền truy cập trang này!');
-                        window.location.href = 'index.html';
+                        document.body.innerHTML = '<h2 style="color:white;text-align:center;margin-top:50px;">Access Denied. Admin only.</h2>';
                         return;
                     }
 
@@ -198,7 +198,8 @@ if (createUserBtn) {
             }
             
             // Save to Firestore using main app
-            await db.collection('users').doc(email).set({ role: role });
+            const emailLower = email.toLowerCase();
+            await db.collection('users').doc(emailLower).set({ role: role });
             
             if (isRestored) {
                 logAudit('RESTORE_USER', { targetEmail: email, assignedRole: role });

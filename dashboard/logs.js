@@ -5,7 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             window.currentUserEmail = user.email;
             try {
-                const userDoc = await db.collection('users').doc(user.email).get();
+                const emailLower = user.email.toLowerCase();
+                const userDoc = await db.collection('users').doc(emailLower).get();
                 if (userDoc.exists) {
                     window.currentUserRole = userDoc.data().role || 'viewer';
                     
@@ -91,7 +92,19 @@ function renderLogRow(data) {
             
         case 'UPDATE_DAILY_VOL':
             actionHtml = `<span class="tag tag-update"><i class="fas fa-edit"></i> Cập Nhật Sản Lượng</span>`;
-            detailHtml = `Sửa sản lượng ngày <strong>${data.day}/${data.monthKey}</strong> của khách <strong>${data.customerCode}</strong>: 
+            
+            // Format Excel date to human readable date
+            let dateStr = data.dateKey || 'undefined';
+            const s = String(dateStr).trim();
+            if (!isNaN(s) && Number(s) > 40000) {
+                const date = new Date(new Date(1899, 11, 30).getTime() + Number(s) * 86400000);
+                dateStr = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+            } else if (s.match(/^(\d{1,2})月(\d{1,2})日?$/)) {
+                const m = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+                dateStr = `${m[2].padStart(2, '0')}/${m[1].padStart(2, '0')}`;
+            }
+
+            detailHtml = `Sửa sản lượng ngày <strong>${dateStr}</strong> của khách <strong>${data.customerCode}</strong>: 
                           <span style="color:#94a3b8; text-decoration:line-through;">${data.oldValue}</span> ➡️ <strong style="color:#3b82f6;">${data.newValue}</strong>`;
             break;
 
