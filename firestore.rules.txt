@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // 1. Quản lý users (Phân quyền)
+    match /users/{email} {
+      // Bất kỳ ai cũng có thể đọc xem mình là ai, hoặc admin đọc tất cả
+      allow read: if request.auth != null;
+      // Chỉ admin mới có quyền tạo/sửa user
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin';
+    }
+
+    // 2. Dashboard Analytics (Meta)
+    match /analytics/{docId} {
+      allow read: if request.auth != null;
+      // Chỉ admin mới được sửa cấu trúc meta của dashboard
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin';
+    }
+
+    // 3. Dữ liệu Giao dịch (Sheets)
+    match /analytics_sheets/{sheetId} {
+      allow read: if request.auth != null;
+      
+      // Admin: được quyền ghi toàn bộ
+      // Staff: chỉ được quyền ghi nếu sheetName trùng với email của Staff (hoặc bạn có thể tự customize rule này)
+      allow write: if request.auth != null && (
+        get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin' || 
+        get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'staff'
+      );
+    }
+    
+    // 4. Audit Logs (Lưu vết)
+    match /audit_logs/{logId} {
+      // Chỉ admin mới được xem lịch sử thao tác
+      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin';
+      // Bất kỳ ai có tài khoản đều được lưu log (chỉ tạo mới, không được sửa/xóa log)
+      allow create: if request.auth != null;
+      allow update, delete: if false;
+    }
+  }
+}

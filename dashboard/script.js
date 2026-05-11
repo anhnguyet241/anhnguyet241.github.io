@@ -27,8 +27,12 @@ const fmt = n => Math.round(n).toLocaleString();
 const sheetSelect = $('sheetSelect');
 const highThresholdInput = $('highThreshold');
 const lowThresholdInput = $('lowThreshold');
+const highDaysThresholdInput = $('highDaysThreshold');
+const lowDaysThresholdInput = $('lowDaysThreshold');
 const highValLabel = $('highVal');
 const lowValLabel = $('lowVal');
+const highDaysValLabel = $('highDaysVal');
+const lowDaysValLabel = $('lowDaysVal');
 const dashboardGrid = $('dashboardGrid');
 const splashScreen = $('splashScreen');
 const noDataScreen = $('noDataScreen');
@@ -48,6 +52,8 @@ if (monthSelectDropdown) {
 }
 highThresholdInput.addEventListener('input', updateThresholds);
 lowThresholdInput.addEventListener('input', updateThresholds);
+if (highDaysThresholdInput) highDaysThresholdInput.addEventListener('input', updateThresholds);
+if (lowDaysThresholdInput) lowDaysThresholdInput.addEventListener('input', updateThresholds);
 searchInput.addEventListener('input', renderTable);
 filterCategory.addEventListener('change', renderTable);
 $('btnExport').addEventListener('click', exportReport);
@@ -301,19 +307,36 @@ async function loadMonthData(monthKey) {
 
         // Setup sheet dropdown
         sheetSelect.innerHTML = '';
-        const allOpt = document.createElement('option');
-        allOpt.value = '__all__';
-        allOpt.textContent = t('select_all');
-        allOpt.setAttribute('data-i18n-key', 'select_all');
-        sheetSelect.appendChild(allOpt);
+        
+        let allowedSheets = Array.from(uniqueSheets).sort();
+        const role = window.currentUserRole || 'viewer';
+        const userStaffName = window.currentUserEmail ? window.currentUserEmail.split('@')[0] : '';
+        
+        if (role === 'staff') {
+            if (allowedSheets.includes(userStaffName)) {
+                allowedSheets = [userStaffName];
+            } else {
+                allowedSheets = [userStaffName]; // Provide it so they can create their first
+            }
+        } else {
+            const allOpt = document.createElement('option');
+            allOpt.value = '__all__';
+            allOpt.textContent = t('select_all');
+            allOpt.setAttribute('data-i18n-key', 'select_all');
+            sheetSelect.appendChild(allOpt);
+        }
 
-        Array.from(uniqueSheets).sort().forEach(name => {
+        allowedSheets.forEach(name => {
             const opt = document.createElement('option');
             opt.value = name;
             opt.textContent = t('select_staff_prefix') + name;
             opt.setAttribute('data-staff-name', name);
             sheetSelect.appendChild(opt);
         });
+        
+        if (role === 'staff' && allowedSheets.length > 0) {
+            sheetSelect.value = allowedSheets[0];
+        }
         sheetSelect.disabled = false;
 
         // Tắt màn hình Cockpit, chuyển qua main dashboard
@@ -419,6 +442,7 @@ function switchSection(section) {
         trends: 'title_trends',
         compare: 'title_compare',
         inactive: 'title_inactive',
+        daily: 'daily_title',
         settings: 'title_settings'
     };
     $('pageTitle').textContent = t(titleKeys[section] || 'appName');
@@ -426,6 +450,7 @@ function switchSection(section) {
     if (section === 'compare') renderCompare();
     if (section === 'trends') renderTrends();
     if (section === 'inactive') renderInactive();
+    if (section === 'daily') renderDailyReport();
 
     document.querySelector('.sidebar').classList.remove('open');
 }
@@ -440,6 +465,18 @@ function updateThresholds() {
     }
     highValLabel.textContent = high;
     lowValLabel.textContent = low;
+    
+    if (highDaysThresholdInput && lowDaysThresholdInput) {
+        let highDays = parseInt(highDaysThresholdInput.value);
+        let lowDays = parseInt(lowDaysThresholdInput.value);
+        if (lowDays > highDays) {
+            if (this === highDaysThresholdInput) { lowDaysThresholdInput.value = highDays; lowDays = highDays; }
+            else { highDaysThresholdInput.value = lowDays; highDays = lowDays; }
+        }
+        if (highDaysValLabel) highDaysValLabel.textContent = highDays;
+        if (lowDaysValLabel) lowDaysValLabel.textContent = lowDays;
+    }
+
     // Cập nhật label trên thẻ KPI
     const htl = $('highThreshLabel');
     const ltl = $('lowThreshLabel');
@@ -452,6 +489,10 @@ function updateThresholds() {
 function analyzeAndRender() {
     const highThresh = parseInt(highThresholdInput.value);
     const lowThresh = parseInt(lowThresholdInput.value);
+    
+    // Fallback if elements not found
+    const highDaysThresh = highDaysThresholdInput ? parseInt(highDaysThresholdInput.value) : 15;
+    const lowDaysThresh = lowDaysThresholdInput ? parseInt(lowDaysThresholdInput.value) : 3;
 
     let highCount = 0, normalCount = 0, lowCount = 0, totalVolume = 0;
     currentSheetData.sort((a, b) => b.total - a.total);
@@ -460,9 +501,23 @@ function analyzeAndRender() {
 
     currentSheetData.forEach(item => {
         totalVolume += item.total;
-        if (item.total >= highThresh) { highCount++; item._category = 'high'; }
-        else if (item.total <= lowThresh) { lowCount++; item._category = 'low'; }
-        else { normalCount++; item._category = 'normal'; }
+        
+        // Tính số ngày active
+        const daily = item.daily || {};
+        const activeDays = Object.values(daily).filter(val => val > 0).length;
+
+        if (item.total >= highThresh || activeDays >= highDaysThresh) { 
+            highCount++; 
+            item._category = 'high'; 
+        }
+        else if (item.total <= lowThresh && activeDays <= lowDaysThresh) { 
+            lowCount++; 
+            item._category = 'low'; 
+        }
+        else { 
+            normalCount++; 
+            item._category = 'normal'; 
+        }
 
         labels.push((item.name || item.id).substring(0, 22));
         totals.push(item.total);
@@ -623,6 +678,15 @@ function renderTable() {
     const maxTotal = currentSheetData.length > 0 ? currentSheetData[0].total : 1;
     const tbody = document.querySelector('#dataTable tbody');
 
+    // Đếm số lượng mã khách để tìm trùng lặp
+    const codeCounts = {};
+    currentSheetData.forEach(item => {
+        const code = String(item.code || '').trim();
+        if (code) {
+            codeCounts[code] = (codeCounts[code] || 0) + 1;
+        }
+    });
+
     let filtered = currentSheetData.filter(item => {
         if (filter !== 'all' && item._category !== filter) return false;
         if (query && !(item.code + ' ' + item.name + ' ' + item.cardType + ' ' + item.id).toLowerCase().includes(query)) return false;
@@ -635,14 +699,26 @@ function renderTable() {
         const pct = maxTotal > 0 ? (item.total / maxTotal * 100) : 0;
         const barColor = item._category === 'high' ? 'var(--green)' : item._category === 'low' ? 'var(--red)' : 'var(--blue)';
         const cardTypeDisplay = item.cardType || '<span style="color:var(--text-secondary)">—</span>';
+        const staffDisplay = item._staffList ? item._staffList.join(', ') : $('sheetSelect').value;
         const lastTxHeader = getLastTxDate(item);
         const lastTxDisplay = lastTxHeader ? formatDateLabel(lastTxHeader) : `<span class="tag tag-low">${t('never_tx')}</span>`;
+        
+        // Cảnh báo trùng mã
+        const code = String(item.code || '').trim();
+        const isDuplicate = code && codeCounts[code] > 1;
+        const codeDisplay = isDuplicate 
+            ? `<strong>${item.code || item.id}</strong> <i class="fas fa-exclamation-triangle text-red" title="Trùng mã khách hàng!" style="margin-left:5px; font-size: 14px;"></i>` 
+            : `<strong>${item.code || item.id}</strong>`;
+
         const tr = document.createElement('tr');
+        if (isDuplicate) tr.style.backgroundColor = 'rgba(239, 68, 68, 0.05)'; // Highlight nhẹ hàng bị trùng
+
         tr.innerHTML = `
             <td style="font-weight:600;color:var(--text-secondary)">${idx + 1}</td>
-            <td><strong>${item.code || item.id}</strong></td>
+            <td>${codeDisplay}</td>
             <td>${item.name}</td>
             <td>${cardTypeDisplay}</td>
+            <td><span class="tag" style="background: var(--bg-hover); color: var(--text-primary);"><i class="fas fa-user-circle"></i> ${staffDisplay}</span></td>
             <td style="font-weight:700;">${fmt(item.total)}</td>
             <td>${lastTxDisplay}</td>
             <td><div class="progress-bar-container"><div class="progress-bar-fill" style="width:${pct}%;background:${barColor};"></div></div></td>`;
@@ -817,7 +893,26 @@ function renderInactive() {
     if (dailyHeaders.length > 0) console.log('[INACTIVE DEBUG] first3=', dailyHeaders.slice(0,3), 'last3=', dailyHeaders.slice(-3));
     if (dailyHeaders.length === 0 || currentSheetData.length === 0) return;
 
-    const lastNHeaders = dailyHeaders.slice(-nDays);
+    // Tìm ngày cuối cùng có bất kỳ giao dịch nào trên toàn sheet
+    let latestActiveIndex = -1;
+    for (let i = dailyHeaders.length - 1; i >= 0; i--) {
+        const header = dailyHeaders[i];
+        for (const item of currentSheetData) {
+            if ((item.daily[header] || 0) > 0) {
+                latestActiveIndex = i;
+                break;
+            }
+        }
+        if (latestActiveIndex !== -1) break;
+    }
+
+    // Nếu sheet hoàn toàn trống, fallback về ngày cuối tháng
+    if (latestActiveIndex === -1) {
+        latestActiveIndex = dailyHeaders.length - 1;
+    }
+
+    const startIndex = Math.max(0, latestActiveIndex - nDays + 1);
+    const lastNHeaders = dailyHeaders.slice(startIndex, latestActiveIndex + 1);
     const inactiveList = [];
     const activeList = [];
 
@@ -866,6 +961,108 @@ function renderInactive() {
             <td><span class="tag tag-inactive"><i class="fas fa-clock"></i> ${t('status_inactive')}</span></td>`;
         tbody.appendChild(tr);
     });
+}
+
+// ── Báo Cáo Ngày (Daily Report) ──
+function renderDailyReport() {
+    const tbody = document.querySelector('#dailyTable tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    // Khởi tạo data theo từng ngày
+    const dailyStats = {};
+    dailyHeaders.forEach(h => {
+        dailyStats[h] = {
+            dateStr: formatDateLabel(h),
+            pcVol: 0,
+            pcTx: 0,
+            cardVol: 0,
+            cardTx: 0,
+            totalVol: 0
+        };
+    });
+
+    // Duyệt qua tất cả khách hàng
+    currentSheetData.forEach(item => {
+        const isPC = item.cardType && item.cardType.toUpperCase().includes('PC');
+        const daily = item.daily || {};
+
+        dailyHeaders.forEach(h => {
+            const vol = daily[h] || 0;
+            if (vol > 0) {
+                if (isPC) {
+                    dailyStats[h].pcVol += vol;
+                    dailyStats[h].pcTx += 1;
+                } else {
+                    dailyStats[h].cardVol += vol;
+                    dailyStats[h].cardTx += 1;
+                }
+                dailyStats[h].totalVol += vol;
+            }
+        });
+    });
+
+    // Tính tổng
+    let sumPcVol = 0, sumPcTx = 0, sumCardVol = 0, sumCardTx = 0, sumTotalAll = 0;
+    
+    // Sắp xếp ngày từ cũ đến mới để tính tăng trưởng
+    const sortedHeaders = [...dailyHeaders].sort((a, b) => {
+        const dA = parseHeaderToDate(a);
+        const dB = parseHeaderToDate(b);
+        if (!dA || !dB) return 0;
+        return dA - dB;
+    });
+
+    let prevTotal = 0;
+
+    // Lặp ngược lại để hiển thị ngày mới nhất lên đầu bảng
+    [...sortedHeaders].reverse().forEach(h => {
+        const s = dailyStats[h];
+        if (!s || s.totalVol === 0) return; // Bỏ qua ngày không có dữ liệu
+
+        sumPcVol += s.pcVol;
+        sumPcTx += s.pcTx;
+        sumCardVol += s.cardVol;
+        sumCardTx += s.cardTx;
+        sumTotalAll += s.totalVol;
+
+        // Tìm prevTotal (tìm ngày liền trước có dữ liệu)
+        const currIdx = sortedHeaders.indexOf(h);
+        let pastTotal = 0;
+        for (let i = currIdx - 1; i >= 0; i--) {
+            if (dailyStats[sortedHeaders[i]].totalVol > 0) {
+                pastTotal = dailyStats[sortedHeaders[i]].totalVol;
+                break;
+            }
+        }
+
+        let growthHtml = '-';
+        if (pastTotal > 0) {
+            const pct = Math.round((s.totalVol - pastTotal) / pastTotal * 100);
+            if (pct > 0) growthHtml = `<span class="tag tag-high"><i class="fas fa-arrow-up"></i> ${pct}%</span>`;
+            else if (pct < 0) growthHtml = `<span class="tag tag-low"><i class="fas fa-arrow-down"></i> ${Math.abs(pct)}%</span>`;
+            else growthHtml = `<span style="color:var(--text-secondary)">0%</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:600;">${s.dateStr}</td>
+            <td style="color:var(--blue); font-weight:500;">${fmt(s.pcVol)}</td>
+            <td>${s.pcTx}</td>
+            <td style="color:var(--green); font-weight:500;">${fmt(s.cardVol)}</td>
+            <td>${s.cardTx}</td>
+            <td style="font-weight:bold;">${fmt(s.totalVol)}</td>
+            <td>${growthHtml}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Update footer
+    if ($('dailyTotalPcVol')) $('dailyTotalPcVol').textContent = fmt(sumPcVol);
+    if ($('dailyTotalPcTx')) $('dailyTotalPcTx').textContent = fmt(sumPcTx);
+    if ($('dailyTotalCardVol')) $('dailyTotalCardVol').textContent = fmt(sumCardVol);
+    if ($('dailyTotalCardTx')) $('dailyTotalCardTx').textContent = fmt(sumCardTx);
+    if ($('dailyTotalAll')) $('dailyTotalAll').textContent = fmt(sumTotalAll);
 }
 
 // Chuyển đổi ngày tiếng Trung (3月2日) hoặc Excel serial thành ngày/tháng bình thường
@@ -1182,6 +1379,8 @@ function findExistingHeaderKey(dayNum, month, year) {
 
 // Hiển thị popup chỉnh sửa tại ô ngày
 function showDayEditPopup(cell, dayNum, year, month) {
+    if (window.currentUserRole === 'viewer') return;
+    
     closeDayEditPopup();
 
     const selectedMonth = $('detailMonthSelect').value;
@@ -1319,10 +1518,12 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
         const customers = data.customers || [];
         let found = false;
 
+        let oldValLog = 0;
         customers.forEach(c => {
             const k = String(c.code || c.id || c.name || '').trim();
             if (k === customerKey) {
                 if (!c.daily) c.daily = {};
+                oldValLog = c.daily[headerKey] || 0;
                 c.daily[headerKey] = newValue;
                 c.total = Object.values(c.daily).reduce((sum, v) => sum + (Number(v) || 0), 0);
                 found = true;
@@ -1337,6 +1538,19 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
 
         // Ghi lại vào Firestore
         await docRef.update({ customers });
+
+        // Ghi Audit Log
+        if (typeof logAudit === 'function') {
+            logAudit('UPDATE_DAILY_VOL', {
+                machineId: machineId,
+                month: monthKey,
+                staff: staffName,
+                customerCode: customerKey,
+                dateKey: headerKey,
+                oldValue: oldValLog,
+                newValue: newValue
+            });
+        }
 
         // Cập nhật header trong meta nếu là ngày mới
         if (!dailyHeaders.includes(headerKey)) {
@@ -1449,6 +1663,10 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
 // ══════════════════════════════════════════════════
 
 function openAddCustomerModal() {
+    if (window.currentUserRole === 'viewer') {
+        alert(currentLang === 'zh' ? '您没有编辑权限。' : 'Bạn không có quyền thêm khách hàng.');
+        return;
+    }
     const modal = $('addCustomerModal');
 
     // Đảm bảo modal nằm ở body level (tránh bị ảnh hưởng bởi parent transforms)
@@ -1474,11 +1692,25 @@ function openAddCustomerModal() {
     // Điền danh sách nhân viên vào dropdown
     const staffSelect = $('addCustStaff');
     staffSelect.innerHTML = '';
-    const sheetNames = Object.keys(allSheetsData).sort();
-    if (sheetNames.length === 0) {
-        alert(t('add_cust_err_staff'));
-        return;
+    
+    let sheetNames = Object.keys(allSheetsData).sort();
+    const role = window.currentUserRole || 'viewer';
+    const userStaffName = window.currentUserEmail ? window.currentUserEmail.split('@')[0] : '';
+    
+    if (role === 'staff') {
+        sheetNames = [userStaffName]; // Staff only creates for themselves
     }
+    
+    if (sheetNames.length === 0) {
+        if (role === 'admin') {
+            alert(t('add_cust_err_staff'));
+            return;
+        } else {
+            // Staff hasn't got a sheet yet, allow their name
+            sheetNames = [userStaffName];
+        }
+    }
+    
     sheetNames.forEach(name => {
         const opt = document.createElement('option');
         opt.value = name;
@@ -1586,6 +1818,17 @@ async function saveNewCustomer() {
         // Đóng modal
         closeAddCustomerModal();
 
+        // Ghi Audit Log
+        if (typeof logAudit === 'function') {
+            logAudit('ADD_CUSTOMER', {
+                machineId: machineId,
+                month: monthKey,
+                staff: staffName,
+                customerCode: code,
+                customerName: name
+            });
+        }
+
         // Hiện thông báo thành công
         alert(t('add_cust_success'));
 
@@ -1641,7 +1884,10 @@ function enterEditCustomerMode() {
     // Thay thế text bằng input
     nameEl.innerHTML = `<input type="text" class="detail-edit-input edit-name" id="editCustName" value="${origName.replace(/"/g, '&quot;')}" />`;
     codeEl.innerHTML = `<input type="text" class="detail-edit-input edit-code" id="editCustCode" value="${origCode.replace(/"/g, '&quot;')}" />`;
-    cardEl.innerHTML = `<input type="text" class="detail-edit-input edit-cardtype" id="editCustCardType" value="${origCard.replace(/"/g, '&quot;')}" />`;
+    
+    // Đảm bảo hiển thị ô thẻ kể cả khi khách chưa có thẻ
+    cardEl.style.display = 'inline-block';
+    cardEl.innerHTML = `<input type="text" class="detail-edit-input edit-cardtype" id="editCustCardType" value="${origCard.replace(/"/g, '&quot;')}" placeholder="Loại thẻ..." />`;
 
     // Đổi nút Edit thành Save/Cancel
     editBtn.outerHTML = `
@@ -1682,7 +1928,15 @@ function exitEditCustomerMode(name, code, card) {
     _isEditingCustomerInfo = false;
     $('detailName').textContent = name;
     $('detailCode').textContent = code;
-    $('detailCardType').textContent = card;
+    
+    const cardEl = $('detailCardType');
+    if (card) {
+        cardEl.style.display = 'inline-block';
+        cardEl.textContent = card;
+    } else {
+        cardEl.style.display = 'none';
+        cardEl.textContent = '';
+    }
 
     // Khôi phục nút Edit
     const actionsEl = $('editCustActions');
@@ -1809,6 +2063,17 @@ async function saveCustomerInfo(origCode) {
         alert(t('edit_cust_success'));
         console.log(`[EDIT-INFO] Updated ${customerKey} → code=${newCode}, name=${newName}, card=${newCard} (${updatedCount} docs)`);
 
+        // Ghi Audit Log
+        if (typeof logAudit === 'function') {
+            logAudit('UPDATE_CUSTOMER', {
+                machineId: machineId,
+                oldCustomerCode: customerKey,
+                newCustomerCode: newCode,
+                newCustomerName: newName,
+                newCardType: newCard
+            });
+        }
+
     } catch (err) {
         console.error('Edit customer info error:', err);
         alert('Lỗi: ' + err.message);
@@ -1901,6 +2166,14 @@ async function deleteCustomer() {
         // Đóng modal
         closeCustomerDetail();
 
+        // Ghi Audit Log
+        if (typeof logAudit === 'function') {
+            logAudit('DELETE_CUSTOMER', {
+                machineId: window._currentMachineId,
+                customerCode: customerKey
+            });
+        }
+
         // Re-render bảng
         analyzeAndRender();
 
@@ -1920,3 +2193,70 @@ async function deleteCustomer() {
 
 // Event listener cho Delete button
 $('detailDeleteBtn')?.addEventListener('click', deleteCustomer);
+
+// =============================================
+// RBAC / UI PERMISSIONS & AUDIT LOGS
+// =============================================
+document.addEventListener('authReady', applyPermissions);
+
+function applyPermissions() {
+    const role = window.currentUserRole || 'viewer';
+    const btnAdd = $('btnAddCustomer');
+    const btnEdit = $('detailEditBtn');
+    const btnDelete = $('detailDeleteBtn');
+    const btnManage = $('userManageBtn');
+    const btnLogs = $('auditLogsBtn');
+    
+    if (role === 'viewer') {
+        if (btnAdd) btnAdd.style.display = 'none';
+        if (btnEdit) btnEdit.style.display = 'none';
+        if (btnDelete) btnDelete.style.display = 'none';
+        if (btnManage) btnManage.style.display = 'none';
+        if (btnLogs) btnLogs.style.display = 'none';
+    } else if (role === 'staff') {
+        if (btnAdd) btnAdd.style.display = 'inline-flex';
+        if (btnEdit) btnEdit.style.display = 'inline-flex';
+        if (btnDelete) btnDelete.style.display = 'none';
+        if (btnManage) btnManage.style.display = 'none';
+        if (btnLogs) btnLogs.style.display = 'none';
+    } else if (role === 'admin') {
+        if (btnAdd) btnAdd.style.display = 'inline-flex';
+        if (btnEdit) btnEdit.style.display = 'inline-flex';
+        if (btnDelete) btnDelete.style.display = 'inline-flex';
+        if (btnManage) btnManage.style.display = 'inline-block';
+        if (btnLogs) btnLogs.style.display = 'inline-block';
+    }
+}
+
+async function logAudit(action, data) {
+    try {
+        if (!window.currentUserEmail) return;
+        await db.collection('audit_logs').add({
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            userEmail: window.currentUserEmail,
+            role: window.currentUserRole || 'unknown',
+            action: action,
+            ...data
+        });
+    } catch (e) {
+        console.error("Failed to write audit log:", e);
+    }
+}
+
+// =============================================
+// USER MANAGEMENT (ADMIN ONLY)
+// =============================================
+const userManageBtn = $('userManageBtn');
+
+if (userManageBtn) {
+    userManageBtn.addEventListener('click', () => {
+        window.location.href = 'users.html';
+    });
+}
+
+const auditLogsBtn = $('auditLogsBtn');
+if (auditLogsBtn) {
+    auditLogsBtn.addEventListener('click', () => {
+        window.location.href = 'logs.html';
+    });
+}

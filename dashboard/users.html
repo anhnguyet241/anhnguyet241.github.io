@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Nhân sự</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../auth.js"></script>
+    <style>
+        body {
+            background-color: #0b1437;
+            color: #fff;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .header-bar {
+            background: #1e293b;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .main-container {
+            flex: 1;
+            padding: 30px;
+            display: flex;
+            gap: 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .panel {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 24px 32px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        .form-panel {
+            flex: 1;
+            min-width: 300px;
+            max-width: 400px;
+        }
+        .list-panel {
+            flex: 2;
+            overflow-y: auto;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            color: #94a3b8;
+            font-size: 13px;
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: #3b82f6;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        .btn-primary:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th, td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        th {
+            color: #94a3b8;
+            font-weight: 600;
+            background: rgba(255,255,255,0.02);
+        }
+        .btn-back {
+            background: rgba(244, 63, 94, 0.1);
+            color: #f43f5e;
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .btn-back:hover {
+            background: rgba(244, 63, 94, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header-bar">
+        <h2 style="margin: 0; color: white; font-size: 20px; display: flex; align-items: center; gap: 10px;">
+            <i class="fas fa-users-cog" style="color: #3b82f6;"></i> Quản lý Nhân sự
+        </h2>
+        <a href="index.html" class="btn-back">
+            <i class="fas fa-arrow-left"></i> Quay lại Dashboard
+        </a>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-container">
+        
+        <!-- Create User Form -->
+        <div class="panel form-panel">
+            <h4 style="color: #cbd5e1; margin-top: 0; margin-bottom: 25px; font-size: 18px;">Tạo Tài Khoản Mới</h4>
+            <div class="form-group">
+                <label>Tên Đăng Nhập (Username)</label>
+                <input type="text" id="newUserId" placeholder="ví dụ: nguyet">
+            </div>
+            <div class="form-group">
+                <label>Mật Khẩu</label>
+                <input type="password" id="newUserPass" placeholder="Mật khẩu ít nhất 6 ký tự...">
+            </div>
+            <div class="form-group">
+                <label>Quyền (Role)</label>
+                <select id="newUserRole">
+                    <option value="staff">Nhân viên (Staff)</option>
+                    <option value="viewer">Chỉ xem (Viewer)</option>
+                    <option value="admin">Quản trị (Admin)</option>
+                </select>
+            </div>
+            <div id="newUserError" style="color: #f43f5e; font-size: 13px; margin-bottom: 15px; display: none;"></div>
+            <button id="createUserBtn" class="btn-primary">
+                <i class="fas fa-plus"></i> Tạo Tài Khoản
+            </button>
+            <div style="font-size: 13px; color: #64748b; margin-top: 20px; text-align: center; line-height: 1.5;">
+                <i class="fas fa-info-circle"></i> Lưu ý: Để xóa tài khoản hoặc đổi pass, vui lòng thao tác trên Firebase Console.
+            </div>
+        </div>
+
+        <!-- User List Table -->
+        <div class="panel list-panel">
+            <h4 style="color: #cbd5e1; margin-top: 0; margin-bottom: 20px; font-size: 18px;">Danh Sách Nhân Viên</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tài Khoản</th>
+                        <th>Quyền (Role)</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="userListTbody">
+                    <!-- Users will be injected here -->
+                </tbody>
+            </table>
+        </div>
+
+    </main>
+
+    <!-- Page Script -->
+    <script src="users.js"></script>
+</body>
+</html>
