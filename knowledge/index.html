@@ -329,21 +329,36 @@
     <!-- Modal Chi Tiết Từ Vựng (Mới) -->
     <div id="word-detail-modal" class="article-modal">
         <div class="article-modal-content" style="max-width: 600px; height: auto; max-height: 90vh;">
-            <div class="article-modal-header" style="border-bottom: none; padding-bottom: 0;">
-                <h2 id="detail-modal-chinese" style="font-size: 48px; color: #dc3545; margin: 0; display: inline-block;"></h2>
-                <button id="detail-modal-tts" class="tts-button" style="font-size: 28px; margin-left: 15px;">🔊</button>
+            <div class="article-modal-header" style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
+                <h2 style="font-size: 22px; margin: 0; color: #333; display: flex; align-items: center; gap: 10px;">
+                    Chi tiết từ vựng
+                    <button id="detail-modal-tts" class="tts-button" style="font-size: 20px; border: none; background: #e9ecef; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#cce5ff'" onmouseout="this.style.background='#e9ecef'">🔊</button>
+                </h2>
                 <button id="word-detail-modal-close" class="article-modal-close">&times;</button>
             </div>
             <div class="article-modal-body" style="padding-top: 5px;">
-                <p id="detail-modal-pinyin" style="font-size: 18px; color: #555; margin-top: 0; margin-bottom: 25px;"></p>
+                
+                <!-- 3 Columns Layout -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 25px; background: #f8f9fa; padding: 15px; border-radius: 12px; border: 1px solid #eee;">
+                    <!-- Tiếng Việt -->
+                    <div>
+                        <div style="font-size: 12px; color: #6c757d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Tiếng Việt 🇻🇳</div>
+                        <div id="detail-modal-meaning" style="font-size: 18px; font-weight: 600; color: #212529;"></div>
+                    </div>
+                    <!-- Tiếng Trung -->
+                    <div style="border-left: 1px solid #dee2e6; padding-left: 15px;">
+                        <div style="font-size: 12px; color: #6c757d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Tiếng Trung 🇨🇳</div>
+                        <div id="detail-modal-chinese" style="font-size: 22px; font-weight: 700; color: #dc3545; margin: 0; line-height: 1.2;"></div>
+                    </div>
+                    <!-- Tiếng Anh -->
+                    <div style="border-left: 1px solid #dee2e6; padding-left: 15px;">
+                        <div style="font-size: 12px; color: #6c757d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Tiếng Anh 🇬🇧</div>
+                        <div id="detail-modal-pinyin" style="font-size: 18px; font-weight: 500; color: #007bff; margin: 0; line-height: 1.2;"></div>
+                    </div>
+                </div>
                 
                 <div id="detail-modal-images-container" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px;">
                     <!-- Ảnh sẽ được đổ vào đây -->
-                </div>
-
-                <div class="detail-info-row">
-                    <span class="detail-label">Nghĩa Tiếng Việt</span>
-                    <p id="detail-modal-meaning" class="detail-text" style="font-weight: 600; color: #212529; font-size: 18px;"></p>
                 </div>
                 
                 <div class="detail-info-row">

@@ -312,19 +312,12 @@ async function loadMonthData(monthKey) {
         const role = window.currentUserRole || 'viewer';
         const userStaffName = window.currentUserEmail ? window.currentUserEmail.split('@')[0] : '';
         
-        if (role === 'staff') {
-            if (allowedSheets.includes(userStaffName)) {
-                allowedSheets = [userStaffName];
-            } else {
-                allowedSheets = [userStaffName]; // Provide it so they can create their first
-            }
-        } else {
-            const allOpt = document.createElement('option');
-            allOpt.value = '__all__';
-            allOpt.textContent = t('select_all');
-            allOpt.setAttribute('data-i18n-key', 'select_all');
-            sheetSelect.appendChild(allOpt);
-        }
+        // Tất cả role đều thấy "Tổng hợp" + danh sách nhân viên
+        const allOpt = document.createElement('option');
+        allOpt.value = '__all__';
+        allOpt.textContent = t('select_all');
+        allOpt.setAttribute('data-i18n-key', 'select_all');
+        sheetSelect.appendChild(allOpt);
 
         allowedSheets.forEach(name => {
             const opt = document.createElement('option');
@@ -334,8 +327,9 @@ async function loadMonthData(monthKey) {
             sheetSelect.appendChild(opt);
         });
         
-        if (role === 'staff' && allowedSheets.length > 0) {
-            sheetSelect.value = allowedSheets[0];
+        // Nếu là staff, tự động chọn sheet của mình (nếu tồn tại)
+        if (role === 'staff' && allowedSheets.includes(userStaffName)) {
+            sheetSelect.value = userStaffName;
         }
         sheetSelect.disabled = false;
 

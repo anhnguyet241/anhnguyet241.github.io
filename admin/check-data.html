@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Kiểm Tra Dữ Liệu Firestore</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 30px; }
+        h1 { color: #38bdf8; margin-bottom: 20px; }
+        .info { background: #1e293b; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #38bdf8; }
+        .info p { margin: 5px 0; font-size: 14px; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        button { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; }
+        .btn-scan { background: #3b82f6; color: white; }
+        .btn-scan:hover { background: #2563eb; }
+        .btn-export { background: #10b981; color: white; }
+        .btn-export:hover { background: #059669; }
+        .btn-danger { background: #ef4444; color: white; }
+        #output { background: #1e293b; padding: 20px; border-radius: 12px; font-family: monospace; font-size: 13px; white-space: pre-wrap; max-height: 70vh; overflow-y: auto; line-height: 1.6; }
+        .highlight { color: #fbbf24; font-weight: bold; }
+        .success { color: #34d399; }
+        .error { color: #f87171; }
+        .doc-row { padding: 8px 12px; margin: 4px 0; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); }
+        .doc-row:hover { background: rgba(255,255,255,0.06); }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
+        th { color: #94a3b8; font-weight: 600; background: rgba(255,255,255,0.02); }
+        td { color: #cbd5e1; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .badge-ok { background: rgba(52,211,153,0.15); color: #34d399; }
+        .badge-empty { background: rgba(248,113,113,0.15); color: #f87171; }
+        .badge-warn { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Kiểm Tra & Khôi Phục Dữ Liệu Firestore</h1>
+    
+    <div class="info">
+        <p>💡 Công cụ này giúp bạn kiểm tra tất cả dữ liệu trong collection <strong>analytics_sheets</strong> và <strong>analytics/meta</strong>.</p>
+        <p>Nếu dữ liệu đã bị mất trên Firestore thì cần upload lại file Excel gốc.</p>
+    </div>
+
+    <div class="controls">
+        <button class="btn-scan" onclick="scanAllData()">🔍 Quét Toàn Bộ Dữ Liệu</button>
+        <button class="btn-scan" onclick="scanMeta()">📋 Xem Meta</button>
+        <button class="btn-scan" onclick="checkAuditLogs()">📜 Xem Audit Logs Gần Đây</button>
+        <button class="btn-export" onclick="exportBackup()">💾 Backup Toàn Bộ (JSON)</button>
+    </div>
+    
+    <div id="output">Nhấn nút "Quét Toàn Bộ Dữ Liệu" để bắt đầu...</div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script>
+        const output = document.getElementById('output');
+
+        function log(text, className) {
+            const span = document.createElement('span');
+            span.className = className || '';
+            span.textContent = text + '\n';
+            output.appendChild(span);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function logHtml(html) {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function scanAllData() {
+            output.innerHTML = '';
+            log('🔍 Đang quét collection analytics_sheets...', 'highlight');
+            
+            try {
+                const snapshot = await db.collection('analytics_sheets').get();
+                
+                if (snapshot.empty) {
+                    log('❌ Collection analytics_sheets TRỐNG HOÀN TOÀN!', 'error');
+                    log('→ Dữ liệu đã bị xóa hoặc chưa upload. Cần upload lại file Excel.', 'error');
+                    return;
+                }
+                
+                log(`✅ Tìm thấy ${snapshot.size} documents\n`, 'success');
+                
+                // Group by machine
+                const byMachine = {};
+                let totalCustomers = 0;
+                
+                snapshot.forEach(doc => {
+                    const id = doc.id;
+                    const data = doc.data();
+                    const customers = data.customers || [];
+                    totalCustomers += customers.length;
+                    
+                    // Parse doc ID: machine_X_YYYY-MM_sheetName
+                    const parts = id.split('_');
+                    const machineKey = parts.slice(0, 2).join('_');
+                    
+                    if (!byMachine[machineKey]) byMachine[machineKey] = [];
+                    byMachine[machineKey].push({
+                        id: id,
+                        customerCount: customers.length,
+                        totalVolume: customers.reduce((sum, c) => sum + (c.total || 0), 0),
+                        sampleCustomers: customers.slice(0, 3).map(c => c.code || c.name || 'N/A')
+                    });
+                });
+
+                log(`📊 Tổng cộng: ${totalCustomers} khách hàng trên ${Object.keys(byMachine).length} máy\n`, 'highlight');
+
+                for (const [machine, docs] of Object.entries(byMachine)) {
+                    log(`\n━━━ ${machine.toUpperCase()} ━━━`, 'highlight');
+                    
+                    let tableHtml = `<table>
+                        <tr><th>Document ID</th><th>Số KH</th><th>Tổng SL</th><th>Mẫu KH</th><th>Trạng thái</th></tr>`;
+                    
+                    docs.forEach(d => {
+                        const badge = d.customerCount > 0 
+                            ? `<span class="badge badge-ok">✅ ${d.customerCount} KH</span>`
+                            : `<span class="badge badge-empty">⚠️ TRỐNG</span>`;
+                        
+                        tableHtml += `<tr>
+                            <td>${d.id}</td>
+                            <td>${d.customerCount}</td>
+                            <td>${d.totalVolume.toLocaleString()}</td>
+                            <td>${d.sampleCustomers.join(', ')}</td>
+                            <td>${badge}</td>
+                        </tr>`;
+                    });
+                    tableHtml += '</table>';
+                    logHtml(tableHtml);
+                }
+
+            } catch (err) {
+                log('❌ Lỗi: ' + err.message, 'error');
+                console.error(err);
+            }
+        }
+
+        async function scanMeta() {
+            output.innerHTML = '';
+            log('📋 Đang đọc analytics/meta...', 'highlight');
+            
+            try {
+                const metaDoc = await db.collection('analytics').doc('meta').get();
+                
+                if (!metaDoc.exists) {
+                    log('❌ Document meta KHÔNG TỒN TẠI!', 'error');
+                    return;
+                }
+                
+                const data = metaDoc.data();
+                log('✅ Meta document tồn tại\n', 'success');
+                
+                if (data.machines) {
+                    for (const [machineKey, machineData] of Object.entries(data.machines)) {
+                        log(`\n━━━ ${machineKey} (${machineData.name || 'N/A'}) ━━━`, 'highlight');
+                        
+                        if (machineData.months) {
+                            for (const [monthKey, monthData] of Object.entries(machineData.months)) {
+                                log(`  📅 Tháng: ${monthKey}`);
+                                log(`     Sheets: ${(monthData.sheetNames || []).join(', ')}`);
+                                log(`     Headers: ${(monthData.headers || []).length} cột`);
+                                log(`     Upload: ${monthData.uploadedAt || 'N/A'}`);
+                            }
+                        } else {
+                            log('  ⚠️ Không có dữ liệu months (legacy?)', 'badge-warn');
+                        }
+                    }
+                } else {
+                    log('❌ Không có trường machines trong meta!', 'error');
+                }
+                
+                log('\n📦 Raw JSON:', 'highlight');
+                log(JSON.stringify(data, null, 2));
+                
+            } catch (err) {
+                log('❌ Lỗi: ' + err.message, 'error');
+            }
+        }
+
+        async function checkAuditLogs() {
+            output.innerHTML = '';
+            log('📜 Đang đọc 50 audit logs gần nhất...', 'highlight');
+            
+            try {
+                const snapshot = await db.collection('audit_logs')
+                    .orderBy('timestamp', 'desc')
+                    .limit(50)
+                    .get();
+                
+                if (snapshot.empty) {
+                    log('Chưa có audit log nào.', 'badge-warn');
+                    return;
+                }
+                
+                let tableHtml = `<table>
+                    <tr><th>Thời gian</th><th>Hành động</th><th>Người thực hiện</th><th>Chi tiết</th></tr>`;
+                
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    const time = d.timestamp ? d.timestamp.toDate().toLocaleString('vi-VN') : 'N/A';
+                    const action = d.action || 'N/A';
+                    const user = d.performedBy || 'N/A';
+                    const detail = JSON.stringify(d.data || {}).substring(0, 120);
+                    
+                    const actionBadge = action.includes('DELETE') 
+                        ? `<span class="badge badge-empty">${action}</span>`
+                        : action.includes('UPDATE') 
+                            ? `<span class="badge badge-warn">${action}</span>`
+                            : `<span class="badge badge-ok">${action}</span>`;
+                    
+                    tableHtml += `<tr>
+                        <td>${time}</td>
+                        <td>${actionBadge}</td>
+                        <td>${user}</td>
+                        <td style="font-size:11px; max-width:300px; overflow:hidden; text-overflow:ellipsis;">${detail}</td>
+                    </tr>`;
+                });
+                
+                tableHtml += '</table>';
+                logHtml(tableHtml);
+                
+            } catch (err) {
+                log('❌ Lỗi: ' + err.message, 'error');
+            }
+        }
+
+        async function exportBackup() {
+            output.innerHTML = '';
+            log('💾 Đang backup toàn bộ dữ liệu...', 'highlight');
+            
+            try {
+                const backup = {
+                    exportedAt: new Date().toISOString(),
+                    meta: null,
+                    sheets: {}
+                };
+                
+                // Backup meta
+                const metaDoc = await db.collection('analytics').doc('meta').get();
+                if (metaDoc.exists) backup.meta = metaDoc.data();
+                
+                // Backup all sheets
+                const snapshot = await db.collection('analytics_sheets').get();
+                snapshot.forEach(doc => {
+                    backup.sheets[doc.id] = doc.data();
+                });
+                
+                log(`✅ Đã backup: ${Object.keys(backup.sheets).length} documents`, 'success');
+                
+                // Download as JSON
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `firestore_backup_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                log('📥 File backup đã được tải xuống!', 'success');
+                log('\n⚠️ Lưu file này cẩn thận - nó chứa TOÀN BỘ dữ liệu của bạn.', 'highlight');
+                
+            } catch (err) {
+                log('❌ Lỗi: ' + err.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
