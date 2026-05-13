@@ -263,7 +263,10 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             text-align: left;
-            border: none;
+            border-right: 1px solid #475569;
+        }
+        .sop-detail-table thead th:last-child {
+            border-right: none;
         }
         .sop-detail-table thead th.sop-col-label { width: 130px; text-align: center; }
         .sop-detail-table thead th.sop-col-vi { width: 28%; }
@@ -299,6 +302,10 @@
             font-size: 14px;
             color: #334155;
             line-height: 1.5;
+            border-right: 1px solid #e2e8f0;
+        }
+        .sop-cell:last-child {
+            border-right: none;
         }
         .sop-cell-vi { font-weight: 600; color: #1e293b; font-size: 15px; }
         .sop-cell-zh { color: #dc3545; font-weight: 700; font-size: 18px; }
@@ -403,10 +410,6 @@
                             <td class="sop-cell sop-cell-vi" id="detail-modal-meaning"></td>
                             <td class="sop-cell sop-cell-zh" id="detail-modal-chinese"></td>
                             <td class="sop-cell sop-cell-en" id="detail-modal-pinyin"></td>
-                        </tr>
-                        <tr id="detail-row-images" style="display:none;">
-                            <td class="sop-label">HÌNH ẢNH<br><span class="sop-label-sub">图片 / Image</span></td>
-                            <td colspan="3" class="sop-cell" id="detail-modal-images-container" style="text-align: center;"></td>
                         </tr>
                         <tr id="detail-row-explanation">
                             <td class="sop-label">GIẢI THÍCH<br><span class="sop-label-sub">说明 / Explanation</span></td>

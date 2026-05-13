@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordDetailModal = document.getElementById('word-detail-modal');
     const wordDetailTitle = document.getElementById('detail-modal-chinese');
     const wordDetailPinyin = document.getElementById('detail-modal-pinyin');
-    const wordDetailImagesContainer = document.getElementById('detail-modal-images-container');
+
     const wordDetailMeaning = document.getElementById('detail-modal-meaning');
     const wordDetailExplVi = document.getElementById('detail-modal-explanation-vi');
     const wordDetailExplZh = document.getElementById('detail-modal-explanation-zh');
@@ -87,31 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         wordDetailPinyin.textContent = data.english_word ? data.english_word : '';
         wordDetailMeaning.textContent = data.vietnamese_meaning;
         
-        // Images row
-        wordDetailImagesContainer.innerHTML = '';
-        const imageRow = document.getElementById('detail-row-images');
-        
-        let imagesToRender = [];
-        if (data.imageUrls && Array.isArray(data.imageUrls) && data.imageUrls.length > 0) {
-            imagesToRender = data.imageUrls;
-        } else if (data.imageUrl) {
-            imagesToRender = [data.imageUrl];
-        }
-
-        if (imagesToRender.length > 0) {
-            imagesToRender.forEach(src => {
-                const img = document.createElement('img');
-                img.src = src;
-                img.alt = "Word Image";
-                img.style.maxHeight = '200px';
-                img.style.borderRadius = '8px';
-                img.style.margin = '5px';
-                wordDetailImagesContainer.appendChild(img);
-            });
-            imageRow.style.display = '';
-        } else {
-            imageRow.style.display = 'none';
-        }
+        // Images row removed based on user request
 
         const emptyHtml = '<span style="color:#94a3b8; font-style:italic;">—</span>';
         const legacyExplRow = document.getElementById('detail-row-explanation');
