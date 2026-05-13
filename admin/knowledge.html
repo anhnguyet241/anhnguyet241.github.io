@@ -287,6 +287,74 @@
         }
         .btn-cancel:hover { background: #e2e8f0; }
 
+        /* Dynamic rows */
+        .dynamic-row {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            position: relative;
+            transition: box-shadow 0.2s;
+        }
+        .dynamic-row:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .dynamic-row-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .dynamic-row-header input {
+            border: none;
+            border-bottom: 2px solid #cbd5e1;
+            background: transparent;
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e293b;
+            padding: 4px 2px;
+            flex: 1;
+            max-width: 280px;
+            transition: border-color 0.2s;
+        }
+        .dynamic-row-header input:focus {
+            outline: none;
+            border-bottom-color: #3b82f6;
+        }
+        .dynamic-row-header input::placeholder { color: #94a3b8; font-weight: 400; }
+        .row-remove-btn {
+            background: #fee2e2;
+            color: #ef4444;
+            border: none;
+            border-radius: 6px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .row-remove-btn:hover { background: #ef4444; color: white; }
+        .add-row-btn {
+            width: 100%;
+            padding: 12px;
+            border: 2px dashed #cbd5e1;
+            border-radius: 10px;
+            background: transparent;
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .add-row-btn:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; }
+
         /* Responsive */
         @media (max-width: 768px) {
             .lang-grid { grid-template-columns: 1fr; }
@@ -296,7 +364,7 @@
 </head>
 
 <body>
-    <div class="container">
+    <div class="container" style="max-width: 100%; padding: 20px 30px;">
         <h1>Quản lý Kiến thức</h1>
         <div id="admin-nav-container"></div>
 
@@ -351,59 +419,22 @@
                             </div>
                         </div>
 
-                        <!-- Step 3: Explanation - 3 languages (textarea) -->
+                        <!-- Step 3: Dynamic Rows -->
                         <div class="form-section">
                             <div class="section-label">
-                                <span class="step-num">3</span> Giải thích
+                                <span class="step-num">3</span> Nội dung chi tiết
+                                <span style="font-size: 11px; color: #94a3b8; text-transform: none; font-weight: 400; letter-spacing: 0;">— Thêm các row với tiêu đề và 3 cột ngôn ngữ tùy ý</span>
                             </div>
-                            <div class="lang-grid">
-                                <div class="lang-col lang-vi">
-                                    <label>🇻🇳 Tiếng Việt</label>
-                                    <textarea id="word-explanation-vi" rows="4" placeholder="Giải thích bằng tiếng Việt..."></textarea>
-                                </div>
-                                <div class="lang-col lang-zh">
-                                    <label>🇨🇳 中文</label>
-                                    <textarea id="word-explanation-zh" rows="4" placeholder="中文说明..."></textarea>
-                                </div>
-                                <div class="lang-col lang-en">
-                                    <label>🇬🇧 English</label>
-                                    <textarea id="word-explanation-en" rows="4" placeholder="English explanation..."></textarea>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Step 4: Example - 3 languages (Quill with image support) -->
-                        <div class="form-section">
-                            <div class="section-label">
-                                <span class="step-num">4</span> Ví dụ
-                                <span style="font-size: 11px; color: #94a3b8; text-transform: none; font-weight: 400; letter-spacing: 0;">— Có thể dán ảnh Ctrl+V vào ô bên dưới</span>
-                            </div>
-                            <div class="lang-grid">
-                                <div class="lang-col lang-vi">
-                                    <label>🇻🇳 Tiếng Việt</label>
-                                    <div class="example-quill-wrap">
-                                        <div id="example-editor-vi"></div>
-                                    </div>
-                                </div>
-                                <div class="lang-col lang-zh">
-                                    <label>🇨🇳 中文</label>
-                                    <div class="example-quill-wrap">
-                                        <div id="example-editor-zh"></div>
-                                    </div>
-                                </div>
-                                <div class="lang-col lang-en">
-                                    <label>🇬🇧 English</label>
-                                    <div class="example-quill-wrap">
-                                        <div id="example-editor-en"></div>
-                                    </div>
-                                </div>
-                            </div>
+                            <div id="dynamic-rows-container"></div>
+                            <button type="button" class="add-row-btn" onclick="addDynamicRow()">
+                                ➕ Thêm Row mới
+                            </button>
                         </div>
 
                         <!-- Step 5: Thumbnail Image -->
                         <div class="form-section">
                             <div class="section-label">
-                                <span class="step-num">5</span> Ảnh minh họa (Thumbnail)
+                                <span class="step-num">4</span> Ảnh minh họa (Thumbnail)
                                 <span style="font-size: 11px; color: #94a3b8; text-transform: none; font-weight: 400; letter-spacing: 0;">— Tối đa 3 ảnh</span>
                             </div>
                             <div id="word-image-upload-area" class="img-upload-zone">

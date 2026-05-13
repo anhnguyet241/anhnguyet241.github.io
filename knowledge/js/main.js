@@ -114,14 +114,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const emptyHtml = '<span style="color:#94a3b8; font-style:italic;">—</span>';
-        // Giải thích — 3 cột ngôn ngữ
-        wordDetailExplVi.innerHTML = data.explanation_vi || data.explanation || emptyHtml;
-        wordDetailExplZh.innerHTML = data.explanation_zh || emptyHtml;
-        wordDetailExplEn.innerHTML = data.explanation_en || emptyHtml;
-        // Ví dụ — 3 cột ngôn ngữ
-        wordDetailExampleVi.innerHTML = data.example_vi || data.example || emptyHtml;
-        wordDetailExampleZh.innerHTML = data.example_zh || emptyHtml;
-        wordDetailExampleEn.innerHTML = data.example_en || emptyHtml;
+        const legacyExplRow = document.getElementById('detail-row-explanation');
+        const legacyExampleRow = document.getElementById('detail-row-example');
+        const customRowsBody = document.getElementById('detail-custom-rows-body');
+
+        // Check if custom_rows exist
+        if (data.custom_rows && Array.isArray(data.custom_rows) && data.custom_rows.length > 0) {
+            // Hide legacy rows
+            legacyExplRow.style.display = 'none';
+            legacyExampleRow.style.display = 'none';
+            // Render custom rows
+            customRowsBody.innerHTML = '';
+            data.custom_rows.forEach(row => {
+                const tr = document.createElement('tr');
+                const title = row.title || '';
+                tr.innerHTML = `
+                    <td class="sop-label">${title.toUpperCase()}</td>
+                    <td class="sop-cell" style="line-height:1.7;">${row.vi || emptyHtml}</td>
+                    <td class="sop-cell" style="line-height:1.7;">${row.zh || emptyHtml}</td>
+                    <td class="sop-cell" style="line-height:1.7;">${row.en || emptyHtml}</td>
+                `;
+                customRowsBody.appendChild(tr);
+            });
+        } else {
+            // Show legacy rows, hide custom body
+            legacyExplRow.style.display = '';
+            legacyExampleRow.style.display = '';
+            customRowsBody.innerHTML = '';
+            // Giải thích — 3 cột ngôn ngữ
+            wordDetailExplVi.innerHTML = data.explanation_vi || data.explanation || emptyHtml;
+            wordDetailExplZh.innerHTML = data.explanation_zh || emptyHtml;
+            wordDetailExplEn.innerHTML = data.explanation_en || emptyHtml;
+            // Ví dụ — 3 cột ngôn ngữ
+            wordDetailExampleVi.innerHTML = data.example_vi || data.example || emptyHtml;
+            wordDetailExampleZh.innerHTML = data.example_zh || emptyHtml;
+            wordDetailExampleEn.innerHTML = data.example_en || emptyHtml;
+        }
         
         // Remove old event listener for TTS to avoid duplicate binds
         const newTtsBtn = wordDetailTtsBtn.cloneNode(true);

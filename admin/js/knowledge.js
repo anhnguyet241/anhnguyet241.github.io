@@ -85,14 +85,108 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const quillExampleVi = new Quill('#example-editor-vi', { ...exampleQuillConfig, placeholder: 'Ví dụ tiếng Việt... (có thể dán ảnh)' });
-    const quillExampleZh = new Quill('#example-editor-zh', { ...exampleQuillConfig, placeholder: '中文例句... (可以粘贴图片)' });
-    const quillExampleEn = new Quill('#example-editor-en', { ...exampleQuillConfig, placeholder: 'English example... (paste images OK)' });
+    // --- Dynamic Rows System (with Quill editors for image support) ---
+    let dynamicRowCounter = 0;
+    const dynamicRowsContainer = document.getElementById('dynamic-rows-container');
 
-    // --- Textarea references for explanation ---
-    const explViInput = document.getElementById('word-explanation-vi');
-    const explZhInput = document.getElementById('word-explanation-zh');
-    const explEnInput = document.getElementById('word-explanation-en');
+    // Helper: get Quill HTML or empty
+    const getQuillHtml = (quill) => {
+        if (!quill) return '';
+        const html = quill.root.innerHTML;
+        return (html === '<p><br></p>' || html === '') ? '' : html;
+    };
+
+    window.addDynamicRow = function(title = '', vi = '', zh = '', en = '') {
+        dynamicRowCounter++;
+        const rowId = 'drow-' + dynamicRowCounter;
+        const row = document.createElement('div');
+        row.className = 'dynamic-row';
+        row.id = rowId;
+        row.innerHTML = `
+            <div class="dynamic-row-header">
+                <span style="color:#94a3b8; font-size:13px; font-weight:600;">\ud83d\udcdd</span>
+                <input type="text" class="row-title-input" value="${title}" placeholder="Nh\u1eadp t\u00ean m\u1ee5c (VD: Gi\u1ea3i th\u00edch, V\u00ed d\u1ee5, T\u1ed5ng h\u1ee3p...)">
+                <button type="button" class="row-remove-btn" onclick="removeDynamicRow('${rowId}')" title="X\u00f3a row">&times;</button>
+            </div>
+            <div class="lang-grid">
+                <div class="lang-col lang-vi">
+                    <label>\ud83c\uddfb\ud83c\uddf3 Ti\u1ebfng Vi\u1ec7t</label>
+                    <div class="example-quill-wrap"><div id="${rowId}-vi"></div></div>
+                </div>
+                <div class="lang-col lang-zh">
+                    <label>\ud83c\udde8\ud83c\uddf3 \u4e2d\u6587</label>
+                    <div class="example-quill-wrap"><div id="${rowId}-zh"></div></div>
+                </div>
+                <div class="lang-col lang-en">
+                    <label>\ud83c\uddec\ud83c\udde7 English</label>
+                    <div class="example-quill-wrap"><div id="${rowId}-en"></div></div>
+                </div>
+            </div>
+        `;
+        dynamicRowsContainer.appendChild(row);
+
+        // Initialize Quill editors for this row
+        const initQ = (suffix, placeholder, content) => {
+            const q = new Quill(`#${rowId}-${suffix}`, {
+                theme: 'snow',
+                modules: {
+                    toolbar: {
+                        container: [['bold', 'italic'], ['image']],
+                        handlers: { image: quillImageHandler }
+                    }
+                },
+                placeholder: placeholder
+            });
+            if (content) q.root.innerHTML = content;
+            // Store ref on the DOM element
+            document.getElementById(`${rowId}-${suffix}`).closest('.example-quill-wrap')._quill = q;
+            return q;
+        };
+
+        initQ('vi', 'N\u1ed9i dung ti\u1ebfng Vi\u1ec7t... (d\u00e1n \u1ea3nh Ctrl+V)', vi);
+        initQ('zh', '\u4e2d\u6587\u5185\u5bb9... (\u53ef\u4ee5\u7c98\u8d34\u56fe\u7247)', zh);
+        initQ('en', 'English content... (paste images OK)', en);
+
+        // Focus on title if empty
+        if (!title) row.querySelector('.row-title-input').focus();
+    };
+
+    window.removeDynamicRow = function(rowId) {
+        const row = document.getElementById(rowId);
+        if (row) {
+            if (dynamicRowsContainer.children.length <= 1) {
+                alert('Ph\u1ea3i gi\u1eef \u00edt nh\u1ea5t 1 row!');
+                return;
+            }
+            row.remove();
+        }
+    };
+
+    const getDynamicRows = () => {
+        const rows = [];
+        dynamicRowsContainer.querySelectorAll('.dynamic-row').forEach(row => {
+            const getQ = (suffix) => {
+                const wrap = row.querySelector(`.lang-${suffix} .example-quill-wrap`);
+                return wrap && wrap._quill ? getQuillHtml(wrap._quill) : '';
+            };
+            rows.push({
+                title: row.querySelector('.row-title-input').value.trim(),
+                vi: getQ('vi'),
+                zh: getQ('zh'),
+                en: getQ('en')
+            });
+        });
+        return rows;
+    };
+
+    const clearDynamicRows = () => {
+        dynamicRowsContainer.innerHTML = '';
+        dynamicRowCounter = 0;
+    };
+
+    // Add default rows on page load
+    addDynamicRow('Gi\u1ea3i th\u00edch');
+    addDynamicRow('V\u00ed d\u1ee5');
 
     // --- Image Upload & Paste Elements (Main Flashcard Thumbnails) ---
     const wordImageUploadArea = document.getElementById('word-image-upload-area');
@@ -212,24 +306,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     wordImageUploadArea.setAttribute('tabindex', '0'); 
 
-    // --- Helper: get quill content or empty string ---
-    const getQuillContent = (quill) => {
-        const html = quill.root.innerHTML;
-        return (html === '<p><br></p>' || html === '') ? '' : html;
-    };
-
     const resetWordForm = () => {
         wordForm.reset();
         wordIdInput.value = '';
-        wordFormTitle.textContent = '✏️ Thêm Từ mới';
+        wordFormTitle.textContent = '\u270f\ufe0f Th\u00eam T\u1eeb m\u1edbi';
         wordCancelBtn.style.display = 'none';
         
-        explViInput.value = '';
-        explZhInput.value = '';
-        explEnInput.value = '';
-        quillExampleVi.root.innerHTML = '';
-        quillExampleZh.root.innerHTML = '';
-        quillExampleEn.root.innerHTML = '';
+        // Reset dynamic rows to defaults
+        clearDynamicRows();
+        addDynamicRow('Gi\u1ea3i th\u00edch');
+        addDynamicRow('V\u00ed d\u1ee5');
 
         // Reset Image Preview
         currentWordImagesBase64 = [];
@@ -240,20 +326,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     wordForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const customRows = getDynamicRows();
+        
+        // Build legacy compat fields from first 2 rows
+        const row0 = customRows[0] || {};
+        const row1 = customRows[1] || {};
+        
         const wordData = {
             category: wordCategoryInput.value || 'Từ mới',
             english_word: wordEnglishInput.value.trim(),
             chinese_word: wordChineseInput.value.trim(),
             vietnamese_meaning: wordVietnameseInput.value.trim(),
-            explanation_vi: explViInput.value.trim(),
-            explanation_zh: explZhInput.value.trim(),
-            explanation_en: explEnInput.value.trim(),
-            example_vi: getQuillContent(quillExampleVi),
-            example_zh: getQuillContent(quillExampleZh),
-            example_en: getQuillContent(quillExampleEn),
+            custom_rows: customRows,
             // Legacy compat
-            explanation: explViInput.value.trim(),
-            example: getQuillContent(quillExampleVi),
+            explanation_vi: row0.vi || '',
+            explanation_zh: row0.zh || '',
+            explanation_en: row0.en || '',
+            example_vi: row1.vi || '',
+            example_zh: row1.zh || '',
+            example_en: row1.en || '',
+            explanation: row0.vi || '',
+            example: row1.vi || '',
             imageUrl: currentWordImagesBase64.length > 0 ? currentWordImagesBase64[0] : '',
             imageUrls: currentWordImagesBase64
         };
@@ -336,12 +429,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 wordEnglishInput.value = data.english_word || '';
                 wordChineseInput.value = data.chinese_word || '';
                 wordVietnameseInput.value = data.vietnamese_meaning || '';
-                explViInput.value = data.explanation_vi || data.explanation || '';
-                explZhInput.value = data.explanation_zh || '';
-                explEnInput.value = data.explanation_en || '';
-                quillExampleVi.root.innerHTML = data.example_vi || data.example || '';
-                quillExampleZh.root.innerHTML = data.example_zh || '';
-                quillExampleEn.root.innerHTML = data.example_en || '';
+                explViInput_value = data.explanation_vi || data.explanation || '';
+                explZhInput_value = data.explanation_zh || '';
+                explEnInput_value = data.explanation_en || '';
+                exampleVi_value = data.example_vi || data.example || '';
+                exampleZh_value = data.example_zh || '';
+                exampleEn_value = data.example_en || '';
+                
+                // Load dynamic rows
+                clearDynamicRows();
+                if (data.custom_rows && Array.isArray(data.custom_rows) && data.custom_rows.length > 0) {
+                    data.custom_rows.forEach(r => addDynamicRow(r.title || '', r.vi || '', r.zh || '', r.en || ''));
+                } else {
+                    // Legacy: build from old fields
+                    addDynamicRow('Gi\u1EA3i th\u00EDch', explViInput_value, explZhInput_value, explEnInput_value);
+                    addDynamicRow('V\u00ED d\u1EE5', exampleVi_value, exampleZh_value, exampleEn_value);
+                }
                 
                 // Hydrate Image Preview
                 currentWordImagesBase64 = [];

@@ -306,6 +306,7 @@
 
         .sop-detail-table img {
             max-height: 200px;
+            max-width: 100%;
             border-radius: 8px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
         }
@@ -376,7 +377,7 @@
 
     <!-- Modal Chi Tiết Từ Vựng — SOP Table Layout -->
     <div id="word-detail-modal" class="article-modal">
-        <div class="article-modal-content" style="max-width: 850px; height: auto; max-height: 90vh;">
+        <div class="article-modal-content" style="max-width: 96%; width: 96%; height: auto; max-height: 90vh;">
             <div class="article-modal-header" style="border-bottom: none; padding-bottom: 10px;">
                 <h2 style="font-size: 20px; margin: 0; color: #333; display: flex; align-items: center; gap: 10px;">
                     📋 Chi tiết từ vựng
@@ -420,6 +421,7 @@
                             <td class="sop-cell" id="detail-modal-example-en" style="background: #f8fbff;"></td>
                         </tr>
                     </tbody>
+                    <tbody id="detail-custom-rows-body"></tbody>
                 </table>
 
             </div>

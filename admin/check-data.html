@@ -24,6 +24,10 @@
         .progress-bar .fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #22d3ee); border-radius: 3px; transition: width 0.3s ease; }
         .btn-staff { background: #8b5cf6; color: white; }
         .btn-staff:hover { background: #7c3aed; }
+        .btn-lang { background: linear-gradient(135deg, #e11d48, #f59e0b); color: white; font-size: 15px; }
+        .btn-lang:hover { opacity: 0.9; transform: scale(1.02); }
+        .btn-guide { background: #06b6d4; color: white; }
+        .btn-guide:hover { background: #0891b2; }
         #output { background: #1e293b; padding: 20px; border-radius: 12px; font-family: monospace; font-size: 13px; white-space: pre-wrap; max-height: 70vh; overflow-y: auto; line-height: 1.6; }
         .highlight { color: #fbbf24; font-weight: bold; }
         .success { color: #34d399; }
@@ -41,55 +45,60 @@
     </style>
 </head>
 <body>
-    <h1>🔍 Kiểm Tra & Khôi Phục Dữ Liệu Firestore</h1>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h1 data-i18n="title">🔍 Kiểm Tra &amp; Khôi Phục Dữ Liệu</h1>
+        <button id="langBtn" class="btn-lang" onclick="switchLanguage()">🇨🇳 中文</button>
+    </div>
     
     <div class="info">
-        <p>💡 Công cụ này giúp bạn kiểm tra tất cả dữ liệu trong collection <strong>analytics_sheets</strong> và <strong>analytics/meta</strong>.</p>
-        <p>Nếu dữ liệu đã bị mất trên Firestore thì cần upload lại file Excel gốc.</p>
+        <p data-i18n="info1">💡 Công cụ này giúp bạn kiểm tra tất cả dữ liệu trong Firestore.</p>
+        <p data-i18n="info2">Nếu dữ liệu đã bị mất thì cần upload lại hoặc restore từ file backup.</p>
     </div>
 
     <div class="controls">
-        <button class="btn-scan" onclick="scanAllData()">🔍 Quét Toàn Bộ Dữ Liệu</button>
-        <button class="btn-scan" onclick="scanMeta()">📋 Xem Meta</button>
-        <button class="btn-scan" onclick="checkAuditLogs()">📜 Xem Audit Logs Gần Đây</button>
-        <button class="btn-export" onclick="exportBackup()">💾 Backup Toàn Bộ (JSON)</button>
-        <button class="btn-restore" onclick="document.getElementById('restoreFileInput').click()">📦 Restore từ File JSON</button>
+        <button class="btn-scan" onclick="scanAllData()" data-i18n="btnScan">🔍 Quét Dữ Liệu</button>
+        <button class="btn-scan" onclick="scanMeta()" data-i18n="btnMeta">📋 Xem Meta</button>
+        <button class="btn-scan" onclick="checkAuditLogs()" data-i18n="btnAudit">📜 Audit Logs</button>
+        <button class="btn-export" onclick="exportBackup()" data-i18n="btnBackup">💾 Backup (JSON)</button>
+        <button class="btn-restore" onclick="document.getElementById('restoreFileInput').click()" data-i18n="btnRestore">📦 Restore</button>
         <input type="file" id="restoreFileInput" accept=".json" style="display:none" onchange="restoreBackup(this)">
-        <button class="btn-staff" onclick="openAddStaffPanel()">👤 Thêm Nhân Viên Mới</button>
+        <button class="btn-staff" onclick="openAddStaffPanel()" data-i18n="btnStaff">👤 Thêm NV</button>
+        <button class="btn-guide" onclick="showGuide()" data-i18n="btnGuide">📖 Hướng dẫn</button>
     </div>
 
     <!-- Add Staff Panel -->
     <div id="staffPanel" style="display:none; background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155;">
-        <h3 style="color: #a78bfa; margin-bottom: 15px;">👤 Thêm Nhân Viên Mới (Không mất data cũ)</h3>
-        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 15px;">Chọn máy + tháng, nhập tên nhân viên → hệ thống sẽ thêm vào danh sách mà <strong style="color: #fbbf24;">KHÔNG ảnh hưởng</strong> data hiện tại.</p>
+        <h3 style="color: #a78bfa; margin-bottom: 15px;" data-i18n="staffTitle">👤 Thêm Nhân Viên Mới (Không mất data cũ)</h3>
+        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 15px;" data-i18n="staffDesc">Chọn máy + tháng, nhập tên nhân viên → hệ thống sẽ thêm vào danh sách mà <strong style="color: #fbbf24;">KHÔNG ảnh hưởng</strong> data hiện tại.</p>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div>
-                <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Máy:</label>
+                <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;" data-i18n="staffMachine">Máy:</label>
                 <select id="staffMachine" style="padding: 8px 12px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid #475569; min-width: 120px;">
-                    <option value="">Đang tải...</option>
+                    <option value="" data-i18n="staffLoading">Đang tải...</option>
                 </select>
             </div>
             <div>
-                <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Tháng:</label>
+                <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;" data-i18n="staffMonth">Tháng:</label>
                 <select id="staffMonth" style="padding: 8px 12px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid #475569; min-width: 140px;">
-                    <option value="">Chọn máy trước</option>
+                    <option value="" data-i18n="staffPickMachine">Chọn máy trước</option>
                 </select>
             </div>
             <div>
-                <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Tên NV mới:</label>
-                <input id="staffName" type="text" placeholder="Ví dụ: JACK" style="padding: 8px 12px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid #475569; width: 160px; text-transform: uppercase;">
+                <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;" data-i18n="staffName">Tên NV mới:</label>
+                <input id="staffNameInput" type="text" data-i18n="staffPlaceholder" placeholder="Ví dụ: JACK" style="padding: 8px 12px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid #475569; width: 160px; text-transform: uppercase;">
             </div>
-            <button class="btn-staff" onclick="addStaff()" style="height: 38px;">➕ Thêm</button>
-            <button onclick="document.getElementById('staffPanel').style.display='none'" style="height: 38px; padding: 8px 16px; background: #334155; color: #94a3b8; border: none; border-radius: 6px; cursor: pointer;">✕ Đóng</button>
+            <button class="btn-staff" onclick="addStaff()" style="height: 38px;" data-i18n="staffAdd">➕ Thêm</button>
+            <button onclick="document.getElementById('staffPanel').style.display='none'" style="height: 38px; padding: 8px 16px; background: #334155; color: #94a3b8; border: none; border-radius: 6px; cursor: pointer;" data-i18n="staffClose">✕ Đóng</button>
         </div>
         <div id="staffCurrentList" style="margin-top: 12px; color: #64748b; font-size: 12px;"></div>
     </div>
     
-    <div id="output">Nhấn nút "Quét Toàn Bộ Dữ Liệu" để bắt đầu...</div>
+    <div id="output" data-i18n="outputDefault">Nhấn nút "Quét Dữ Liệu" để bắt đầu...</div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="../firebase-config.js"></script>
+    <script src="js/check-data-i18n.js"></script>
     <script>
         const output = document.getElementById('output');
 
@@ -110,20 +119,19 @@
 
         async function scanAllData() {
             output.innerHTML = '';
-            log('🔍 Đang quét collection analytics_sheets...', 'highlight');
+            log(t('scanning'), 'highlight');
             
             try {
                 const snapshot = await db.collection('analytics_sheets').get();
                 
                 if (snapshot.empty) {
-                    log('❌ Collection analytics_sheets TRỐNG HOÀN TOÀN!', 'error');
-                    log('→ Dữ liệu đã bị xóa hoặc chưa upload. Cần upload lại file Excel.', 'error');
+                    log(t('emptyCollection'), 'error');
+                    log(t('emptyHint'), 'error');
                     return;
                 }
                 
-                log(`✅ Tìm thấy ${snapshot.size} documents\n`, 'success');
+                log(`${t('found')} ${snapshot.size} ${t('documents')}\n`, 'success');
                 
-                // Group by machine
                 const byMachine = {};
                 let totalCustomers = 0;
                 
@@ -132,91 +140,60 @@
                     const data = doc.data();
                     const customers = data.customers || [];
                     totalCustomers += customers.length;
-                    
-                    // Parse doc ID: machine_X_YYYY-MM_sheetName
                     const parts = id.split('_');
                     const machineKey = parts.slice(0, 2).join('_');
-                    
                     if (!byMachine[machineKey]) byMachine[machineKey] = [];
                     byMachine[machineKey].push({
-                        id: id,
-                        customerCount: customers.length,
+                        id, customerCount: customers.length,
                         totalVolume: customers.reduce((sum, c) => sum + (c.total || 0), 0),
                         sampleCustomers: customers.slice(0, 3).map(c => c.code || c.name || 'N/A')
                     });
                 });
 
-                log(`📊 Tổng cộng: ${totalCustomers} khách hàng trên ${Object.keys(byMachine).length} máy\n`, 'highlight');
+                log(`${t('totalSummary')} ${totalCustomers} ${t('customers')} ${Object.keys(byMachine).length} ${t('machines')}\n`, 'highlight');
 
                 for (const [machine, docs] of Object.entries(byMachine)) {
                     log(`\n━━━ ${machine.toUpperCase()} ━━━`, 'highlight');
-                    
-                    let tableHtml = `<table>
-                        <tr><th>Document ID</th><th>Số KH</th><th>Tổng SL</th><th>Mẫu KH</th><th>Trạng thái</th></tr>`;
-                    
+                    let tableHtml = `<table><tr><th>${t('thDocId')}</th><th>${t('thCount')}</th><th>${t('thVolume')}</th><th>${t('thSample')}</th><th>${t('thStatus')}</th></tr>`;
                     docs.forEach(d => {
                         const badge = d.customerCount > 0 
-                            ? `<span class="badge badge-ok">✅ ${d.customerCount} KH</span>`
-                            : `<span class="badge badge-empty">⚠️ TRỐNG</span>`;
-                        
-                        tableHtml += `<tr>
-                            <td>${d.id}</td>
-                            <td>${d.customerCount}</td>
-                            <td>${d.totalVolume.toLocaleString()}</td>
-                            <td>${d.sampleCustomers.join(', ')}</td>
-                            <td>${badge}</td>
-                        </tr>`;
+                            ? `<span class="badge badge-ok">✅ ${d.customerCount}</span>`
+                            : `<span class="badge badge-empty">⚠️ EMPTY</span>`;
+                        tableHtml += `<tr><td>${d.id}</td><td>${d.customerCount}</td><td>${d.totalVolume.toLocaleString()}</td><td>${d.sampleCustomers.join(', ')}</td><td>${badge}</td></tr>`;
                     });
                     tableHtml += '</table>';
                     logHtml(tableHtml);
                 }
-
             } catch (err) {
-                log('❌ Lỗi: ' + err.message, 'error');
+                log(t('error') + err.message, 'error');
                 console.error(err);
             }
         }
 
         async function scanMeta() {
             output.innerHTML = '';
-            log('📋 Đang đọc analytics/meta...', 'highlight');
-            
+            log(t('readingMeta'), 'highlight');
             try {
                 const metaDoc = await db.collection('analytics').doc('meta').get();
-                
-                if (!metaDoc.exists) {
-                    log('❌ Document meta KHÔNG TỒN TẠI!', 'error');
-                    return;
-                }
-                
+                if (!metaDoc.exists) { log(t('metaNotExist'), 'error'); return; }
                 const data = metaDoc.data();
-                log('✅ Meta document tồn tại\n', 'success');
-                
+                log(t('metaOk') + '\n', 'success');
                 if (data.machines) {
                     for (const [machineKey, machineData] of Object.entries(data.machines)) {
                         log(`\n━━━ ${machineKey} (${machineData.name || 'N/A'}) ━━━`, 'highlight');
-                        
                         if (machineData.months) {
                             for (const [monthKey, monthData] of Object.entries(machineData.months)) {
-                                log(`  📅 Tháng: ${monthKey}`);
-                                log(`     Sheets: ${(monthData.sheetNames || []).join(', ')}`);
-                                log(`     Headers: ${(monthData.headers || []).length} cột`);
-                                log(`     Upload: ${monthData.uploadedAt || 'N/A'}`);
+                                log(`  📅 ${t('month')}: ${monthKey}`);
+                                log(`     ${t('sheets')}: ${(monthData.sheetNames || []).join(', ')}`);
+                                log(`     ${t('headers')}: ${(monthData.headers || []).length}`);
+                                log(`     ${t('upload')}: ${monthData.uploadedAt || 'N/A'}`);
                             }
-                        } else {
-                            log('  ⚠️ Không có dữ liệu months (legacy?)', 'badge-warn');
-                        }
+                        } else { log('  ' + t('noMonths'), 'badge-warn'); }
                     }
-                } else {
-                    log('❌ Không có trường machines trong meta!', 'error');
-                }
-                
-                log('\n📦 Raw JSON:', 'highlight');
+                } else { log(t('noMachines'), 'error'); }
+                log('\n' + t('rawJson'), 'highlight');
                 log(JSON.stringify(data, null, 2));
-                
-            } catch (err) {
-                log('❌ Lỗi: ' + err.message, 'error');
-            }
+            } catch (err) { log(t('error') + err.message, 'error'); }
         }
 
         async function checkAuditLogs() {
@@ -551,7 +528,7 @@
         async function addStaff() {
             const machineKey = document.getElementById('staffMachine').value;
             const monthKey = document.getElementById('staffMonth').value;
-            const rawName = document.getElementById('staffName').value.trim().toUpperCase();
+            const rawName = document.getElementById('staffNameInput').value.trim().toUpperCase();
 
             if (!machineKey) { alert('Vui lòng chọn máy!'); return; }
             if (!monthKey) { alert('Vui lòng chọn tháng!'); return; }
@@ -623,7 +600,7 @@
                 }
 
                 // Clear input
-                document.getElementById('staffName').value = '';
+                document.getElementById('staffNameInput').value = '';
 
                 // Refresh the current staff display
                 _metaCache = metaData;
