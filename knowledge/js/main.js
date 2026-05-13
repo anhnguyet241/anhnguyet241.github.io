@@ -18,8 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordDetailPinyin = document.getElementById('detail-modal-pinyin');
     const wordDetailImagesContainer = document.getElementById('detail-modal-images-container');
     const wordDetailMeaning = document.getElementById('detail-modal-meaning');
-    const wordDetailExplanation = document.getElementById('detail-modal-explanation');
-    const wordDetailExample = document.getElementById('detail-modal-example');
+    const wordDetailExplVi = document.getElementById('detail-modal-explanation-vi');
+    const wordDetailExplZh = document.getElementById('detail-modal-explanation-zh');
+    const wordDetailExplEn = document.getElementById('detail-modal-explanation-en');
+    const wordDetailExampleVi = document.getElementById('detail-modal-example-vi');
+    const wordDetailExampleZh = document.getElementById('detail-modal-example-zh');
+    const wordDetailExampleEn = document.getElementById('detail-modal-example-en');
     let wordDetailTtsBtn = document.getElementById('detail-modal-tts');
     const wordDetailCloseBtn = document.getElementById('word-detail-modal-close');
 
@@ -80,12 +84,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openWordDetailModal = (data) => {
         wordDetailTitle.textContent = data.chinese_word;
-        // Pinyin / English
         wordDetailPinyin.textContent = data.english_word ? data.english_word : '';
+        wordDetailMeaning.textContent = data.vietnamese_meaning;
         
-        wordDetailImagesContainer.innerHTML = ''; // Xóa ảnh cũ
+        // Images row
+        wordDetailImagesContainer.innerHTML = '';
+        const imageRow = document.getElementById('detail-row-images');
         
-        // Chuẩn bị mảng ảnh
         let imagesToRender = [];
         if (data.imageUrls && Array.isArray(data.imageUrls) && data.imageUrls.length > 0) {
             imagesToRender = data.imageUrls;
@@ -98,29 +103,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 const img = document.createElement('img');
                 img.src = src;
                 img.alt = "Word Image";
-                img.style.maxWidth = '100%';
-                img.style.maxHeight = '250px';
-                img.style.borderRadius = '12px';
-                img.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
-                // Nếu có nhiều ảnh, giới hạn width tương đối để xếp ngang đẹp hơn
-                if(imagesToRender.length > 1) {
-                    img.style.maxWidth = 'calc(50% - 10px)'; // 2 ảnh trên 1 dòng
-                }
+                img.style.maxHeight = '200px';
+                img.style.borderRadius = '8px';
+                img.style.margin = '5px';
                 wordDetailImagesContainer.appendChild(img);
             });
-            wordDetailImagesContainer.style.display = 'flex';
+            imageRow.style.display = '';
         } else {
-            wordDetailImagesContainer.style.display = 'none';
+            imageRow.style.display = 'none';
         }
 
-        wordDetailMeaning.textContent = data.vietnamese_meaning;
-        wordDetailExplanation.innerHTML = data.explanation || 'Chưa có thông tin giải thích.';
-        wordDetailExample.innerHTML = data.example || 'Chưa có ví dụ cụ thể.';
+        const emptyHtml = '<span style="color:#94a3b8; font-style:italic;">—</span>';
+        // Giải thích — 3 cột ngôn ngữ
+        wordDetailExplVi.innerHTML = data.explanation_vi || data.explanation || emptyHtml;
+        wordDetailExplZh.innerHTML = data.explanation_zh || emptyHtml;
+        wordDetailExplEn.innerHTML = data.explanation_en || emptyHtml;
+        // Ví dụ — 3 cột ngôn ngữ
+        wordDetailExampleVi.innerHTML = data.example_vi || data.example || emptyHtml;
+        wordDetailExampleZh.innerHTML = data.example_zh || emptyHtml;
+        wordDetailExampleEn.innerHTML = data.example_en || emptyHtml;
         
         // Remove old event listener for TTS to avoid duplicate binds
         const newTtsBtn = wordDetailTtsBtn.cloneNode(true);
         wordDetailTtsBtn.parentNode.replaceChild(newTtsBtn, wordDetailTtsBtn);
-        wordDetailTtsBtn = newTtsBtn; // Cập nhật lại biến global
+        wordDetailTtsBtn = newTtsBtn;
         
         wordDetailTtsBtn.addEventListener('click', () => {
             speak(data.chinese_word, 'zh-CN');
@@ -260,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
             categoriesGrid.innerHTML = '<p>Error loading data. Please try again later.</p>';
         });
 
-    // Hàm render các từ vựng dựa trên Categories
+    // Hàm render các từ vựng dựa trên Categories — Flashcard Layout
     const renderWordsByCategory = (categoryName) => {
         wordsContainer.innerHTML = '';
         
@@ -280,7 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'word-flashcard';
             
-            // Render Image with fallback
             let imgHTML = '';
             if (data.imageUrl) {
                 imgHTML = `<div class="flashcard-img-container"><img src="${data.imageUrl}" alt="${data.chinese_word}"></div>`;
@@ -298,12 +303,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="flashcard-tts-btn" title="Nghe phát âm">🔊</button>
             `;
             
-            // Xử lý sự kiện Click xem chi tiết
             card.addEventListener('click', () => {
                 openWordDetailModal(data);
             });
             
-            // Xử lý sự kiện Click Loa (Ngăn nổi bọt để không mở Modal)
             const ttsBtn = card.querySelector('.flashcard-tts-btn');
             ttsBtn.addEventListener('click', (e) => {
                 e.stopPropagation();

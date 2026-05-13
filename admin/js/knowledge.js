@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordCategoryInput = document.getElementById('word-category');
     const wordFormTitle = document.getElementById('word-form-title');
 
-    // --- Quill Editors & Custom Image Handler ---
+    // --- Quill Image Handler (compress before embed) ---
     const quillImageHandler = function() {
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
@@ -35,60 +35,64 @@ document.addEventListener('DOMContentLoaded', () => {
         input.onchange = () => {
             const file = input.files[0];
             if (/^image\//.test(file.type)) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
-                        const max_size = 800; 
-
-                        if (width > height) {
-                            if (width > max_size) {
-                                height *= max_size / width;
-                                width = max_size;
-                            }
-                        } else {
-                            if (height > max_size) {
-                                width *= max_size / height;
-                                height = max_size;
-                            }
-                        }
-
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-                        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                        
-                        const range = this.quill.getSelection(true);
-                        this.quill.insertEmbed(range.index, 'image', compressedBase64);
-                        this.quill.setSelection(range.index + 1);
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
+                compressAndInsertImage(file, this.quill);
             }
         };
     };
 
-    const quillConfig = {
+    const compressAndInsertImage = (file, quillInstance) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const max_size = 600;
+
+                if (width > height) {
+                    if (width > max_size) { height *= max_size / width; width = max_size; }
+                } else {
+                    if (height > max_size) { width *= max_size / height; height = max_size; }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+                const range = quillInstance.getSelection(true);
+                quillInstance.insertEmbed(range.index, 'image', compressedBase64);
+                quillInstance.setSelection(range.index + 1);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // --- Quill Config for Example editors (compact toolbar with image support) ---
+    const exampleQuillConfig = {
         theme: 'snow',
         modules: {
             toolbar: {
                 container: [
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    ['image', 'clean']
+                    ['bold', 'italic'],
+                    ['image']
                 ],
                 handlers: { image: quillImageHandler }
             }
         }
     };
 
-    const quillExplanation = new Quill('#word-explanation-editor', { ...quillConfig, placeholder: 'Nhập nội dung giải thích...' });
-    const quillExample = new Quill('#word-example-editor', { ...quillConfig, placeholder: 'Nhập ví dụ minh họa...' });
+    const quillExampleVi = new Quill('#example-editor-vi', { ...exampleQuillConfig, placeholder: 'Ví dụ tiếng Việt... (có thể dán ảnh)' });
+    const quillExampleZh = new Quill('#example-editor-zh', { ...exampleQuillConfig, placeholder: '中文例句... (可以粘贴图片)' });
+    const quillExampleEn = new Quill('#example-editor-en', { ...exampleQuillConfig, placeholder: 'English example... (paste images OK)' });
+
+    // --- Textarea references for explanation ---
+    const explViInput = document.getElementById('word-explanation-vi');
+    const explZhInput = document.getElementById('word-explanation-zh');
+    const explEnInput = document.getElementById('word-explanation-en');
 
     // --- Image Upload & Paste Elements (Main Flashcard Thumbnails) ---
     const wordImageUploadArea = document.getElementById('word-image-upload-area');
@@ -106,7 +110,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         wordImagePreviewContainer.style.display = 'flex';
-        // Ẩn dropzone nếu đã đủ 3 ảnh
         if (currentWordImagesBase64.length >= 3) {
             wordImageUploadArea.style.display = 'none';
         } else {
@@ -115,27 +118,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentWordImagesBase64.forEach((base64Str, index) => {
             const wrapper = document.createElement('div');
-            wrapper.style.position = 'relative';
-            wrapper.style.border = '1px solid #ddd';
-            wrapper.style.borderRadius = '8px';
-            wrapper.style.padding = '5px';
-            wrapper.style.background = 'white';
+            wrapper.className = 'img-preview-item';
 
             const img = document.createElement('img');
             img.src = base64Str;
-            img.style.maxHeight = '150px';
-            img.style.borderRadius = '4px';
-            img.style.display = 'block';
 
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
+            removeBtn.className = 'remove-img';
             removeBtn.innerHTML = '&times;';
-            removeBtn.style.cssText = 'position: absolute; top: -10px; right: -10px; background: #dc3545; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
             
             removeBtn.onclick = () => {
                 currentWordImagesBase64.splice(index, 1);
                 renderImagePreviews();
-                wordImageFile.value = ''; // Reset input to allow re-uploading the same file
+                wordImageFile.value = '';
             };
 
             wrapper.appendChild(img);
@@ -155,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_WIDTH = 800; // Tiêu chuẩn 800px
+                const MAX_WIDTH = 800;
 
                 if (width > MAX_WIDTH) {
                     height = Math.round((height * MAX_WIDTH) / width);
@@ -167,7 +163,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // Nén thành JPEG mức 0.7
                 const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
                 if (currentWordImagesBase64.length < 3) {
                     currentWordImagesBase64.push(compressedBase64);
@@ -192,16 +187,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Event for Paste (dán ảnh)
+    // Event for Paste (dán ảnh) - only for main thumbnail area
     document.addEventListener('paste', (e) => {
-        // Chỉ xử lý paste ảnh nếu người dùng không đang gõ vào các ô text khác
         const activeTag = document.activeElement.tagName.toLowerCase();
+        // Skip if user is typing in input/textarea/select
         if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
-            // Ngoại trừ trường hợp focus trực tiếp vào div upload area
             if (document.activeElement.id !== 'word-image-upload-area') {
                 return; 
             }
         }
+        // Skip if inside a Quill editor (Quill handles its own paste)
+        if (document.activeElement.closest('.ql-editor')) return;
         
         const items = e.clipboardData.items;
         for (let i = 0; i < items.length; i++) {
@@ -214,17 +210,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Khả năng focus vào thẻ div để paste
     wordImageUploadArea.setAttribute('tabindex', '0'); 
+
+    // --- Helper: get quill content or empty string ---
+    const getQuillContent = (quill) => {
+        const html = quill.root.innerHTML;
+        return (html === '<p><br></p>' || html === '') ? '' : html;
+    };
 
     const resetWordForm = () => {
         wordForm.reset();
         wordIdInput.value = '';
-        wordFormTitle.textContent = 'Thêm Từ mới';
+        wordFormTitle.textContent = '✏️ Thêm Từ mới';
         wordCancelBtn.style.display = 'none';
         
-        quillExplanation.root.innerHTML = '';
-        quillExample.root.innerHTML = '';
+        explViInput.value = '';
+        explZhInput.value = '';
+        explEnInput.value = '';
+        quillExampleVi.root.innerHTML = '';
+        quillExampleZh.root.innerHTML = '';
+        quillExampleEn.root.innerHTML = '';
 
         // Reset Image Preview
         currentWordImagesBase64 = [];
@@ -240,10 +245,17 @@ document.addEventListener('DOMContentLoaded', () => {
             english_word: wordEnglishInput.value.trim(),
             chinese_word: wordChineseInput.value.trim(),
             vietnamese_meaning: wordVietnameseInput.value.trim(),
-            explanation: quillExplanation.root.innerHTML === '<p><br></p>' ? '' : quillExplanation.root.innerHTML,
-            example: quillExample.root.innerHTML === '<p><br></p>' ? '' : quillExample.root.innerHTML,
-            imageUrl: currentWordImagesBase64.length > 0 ? currentWordImagesBase64[0] : '', // Fallback cho code cũ
-            imageUrls: currentWordImagesBase64 // Mảng tối đa 3 ảnh
+            explanation_vi: explViInput.value.trim(),
+            explanation_zh: explZhInput.value.trim(),
+            explanation_en: explEnInput.value.trim(),
+            example_vi: getQuillContent(quillExampleVi),
+            example_zh: getQuillContent(quillExampleZh),
+            example_en: getQuillContent(quillExampleEn),
+            // Legacy compat
+            explanation: explViInput.value.trim(),
+            example: getQuillContent(quillExampleVi),
+            imageUrl: currentWordImagesBase64.length > 0 ? currentWordImagesBase64[0] : '',
+            imageUrls: currentWordImagesBase64
         };
 
         if (!wordData.english_word || !wordData.chinese_word || !wordData.vietnamese_meaning) {
@@ -287,9 +299,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <option value="Khác" ${catVal === 'Khác' ? 'selected' : ''}>Khác</option>
                     </select>
                 </td>
-                <td>${data.english_word}</td>
-                <td>${data.chinese_word}</td>
                 <td>${data.vietnamese_meaning}</td>
+                <td style="color: #dc3545; font-weight: 600;">${data.chinese_word}</td>
+                <td style="color: #2563eb;">${data.english_word}</td>
                 <td>
                     <button class="btn btn-warning btn-sm edit-word">Sửa</button>
                     <button class="btn btn-danger btn-sm delete-word">Xóa</button>
@@ -316,7 +328,6 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.querySelector('.edit-word').addEventListener('click', () => {
                 wordIdInput.value = doc.id;
                 
-                // Cố gắng map lại giá trị danh mục cũ (Mặc định: 'Từ mới')
                 let catVal = data.category || 'Từ mới';
                 const validOptions = ['Loại thẻ', 'Từ mới', 'Quốc gia', 'Ngân hàng', 'app pending', 'Khác'];
                 if(!validOptions.includes(catVal)) catVal = 'Khác';
@@ -325,8 +336,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 wordEnglishInput.value = data.english_word || '';
                 wordChineseInput.value = data.chinese_word || '';
                 wordVietnameseInput.value = data.vietnamese_meaning || '';
-                quillExplanation.root.innerHTML = data.explanation || '';
-                quillExample.root.innerHTML = data.example || '';
+                explViInput.value = data.explanation_vi || data.explanation || '';
+                explZhInput.value = data.explanation_zh || '';
+                explEnInput.value = data.explanation_en || '';
+                quillExampleVi.root.innerHTML = data.example_vi || data.example || '';
+                quillExampleZh.root.innerHTML = data.example_zh || '';
+                quillExampleEn.root.innerHTML = data.example_en || '';
                 
                 // Hydrate Image Preview
                 currentWordImagesBase64 = [];
@@ -337,9 +352,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 renderImagePreviews();
 
-                wordFormTitle.textContent = 'Sửa Từ mới';
+                wordFormTitle.textContent = '📝 Sửa Từ mới';
                 wordCancelBtn.style.display = 'inline-block';
-                window.scrollTo(0, 0);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             });
             tr.querySelector('.delete-word').addEventListener('click', async () => {
                 if (confirm(`Xóa từ "${data.english_word}"?`)) {

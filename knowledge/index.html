@@ -147,7 +147,7 @@
         }
 
         /* -------------------------------------- */
-        /* HSK Flashcard Styles (New layout)      */
+        /* HSK Flashcard Styles (Original layout) */
         /* -------------------------------------- */
         #words-container {
             display: grid;
@@ -157,7 +157,7 @@
         }
 
         .word-flashcard {
-            background-color: #f7f6f5; /* Màu nền xám/be nhạt nhẹ nhàng */
+            background-color: #f7f6f5;
             border-radius: 12px;
             display: flex;
             padding: 12px;
@@ -198,7 +198,7 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
-            padding-right: 30px; /* Nhường chỗ cho nút loa */
+            padding-right: 30px;
         }
         .flashcard-chinese {
             font-size: 26px;
@@ -245,27 +245,75 @@
             background: rgba(0, 123, 255, 0.1);
         }
 
-        /* Detail Modal Info Styling */
-        .detail-info-row {
-            margin-bottom: 20px;
+        /* SOP Detail Table (Modal) */
+        .sop-detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid #dee2e6;
         }
-        .detail-label {
-            font-weight: bold;
-            color: #2c3e50;
-            font-size: 16px;
-            margin-bottom: 5px;
+        .sop-detail-table thead th {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            color: white;
+            padding: 12px 14px;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            text-align: left;
+            border: none;
+        }
+        .sop-detail-table thead th.sop-col-label { width: 130px; text-align: center; }
+        .sop-detail-table thead th.sop-col-vi { width: 28%; }
+        .sop-detail-table thead th.sop-col-zh { width: 28%; }
+        .sop-detail-table thead th.sop-col-en { width: 28%; }
+
+        .sop-detail-table tbody tr { border-bottom: 1px solid #e9ecef; }
+        .sop-detail-table tbody tr:last-child { border-bottom: none; }
+
+        .sop-label {
+            background: #f1f5f9;
+            font-weight: 700;
+            font-size: 12px;
+            color: #475569;
+            text-transform: uppercase;
+            text-align: center;
+            padding: 14px 10px;
+            vertical-align: top;
+            letter-spacing: 0.3px;
+            line-height: 1.5;
+            border-right: 2px solid #e2e8f0;
+        }
+        .sop-label-sub {
             display: block;
-            border-left: 3px solid #007bff;
-            padding-left: 10px;
+            font-weight: 400;
+            font-size: 10px;
+            color: #94a3b8;
+            margin-top: 2px;
         }
-        .detail-text {
-            color: #444;
-            font-size: 16px;
-            line-height: 1.6;
-            padding: 10px 15px;
-            background-color: #f8f9fa;
+        .sop-cell {
+            padding: 14px;
+            vertical-align: top;
+            font-size: 14px;
+            color: #334155;
+            line-height: 1.5;
+        }
+        .sop-cell-vi { font-weight: 600; color: #1e293b; font-size: 15px; }
+        .sop-cell-zh { color: #dc3545; font-weight: 700; font-size: 18px; }
+        .sop-cell-en { color: #2563eb; font-weight: 500; font-size: 15px; }
+
+        .sop-detail-table img {
+            max-height: 200px;
             border-radius: 8px;
-            margin: 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        @media (max-width: 600px) {
+            .sop-detail-table thead th, .sop-cell, .sop-label { padding: 10px 8px; font-size: 12px; }
+            .sop-cell-zh { font-size: 15px; }
+            .sop-detail-table thead th.sop-col-label, .sop-label { width: 80px; font-size: 10px; }
         }
     </style>
 </head>
@@ -326,50 +374,54 @@
         </div>
     </div>
 
-    <!-- Modal Chi Tiết Từ Vựng (Mới) -->
+    <!-- Modal Chi Tiết Từ Vựng — SOP Table Layout -->
     <div id="word-detail-modal" class="article-modal">
-        <div class="article-modal-content" style="max-width: 600px; height: auto; max-height: 90vh;">
-            <div class="article-modal-header" style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
-                <h2 style="font-size: 22px; margin: 0; color: #333; display: flex; align-items: center; gap: 10px;">
-                    Chi tiết từ vựng
-                    <button id="detail-modal-tts" class="tts-button" style="font-size: 20px; border: none; background: #e9ecef; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#cce5ff'" onmouseout="this.style.background='#e9ecef'">🔊</button>
+        <div class="article-modal-content" style="max-width: 850px; height: auto; max-height: 90vh;">
+            <div class="article-modal-header" style="border-bottom: none; padding-bottom: 10px;">
+                <h2 style="font-size: 20px; margin: 0; color: #333; display: flex; align-items: center; gap: 10px;">
+                    📋 Chi tiết từ vựng
+                    <button id="detail-modal-tts" class="tts-button" style="font-size: 18px; border: none; background: #e9ecef; border-radius: 50%; width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#cce5ff'" onmouseout="this.style.background='#e9ecef'">🔊</button>
                 </h2>
                 <button id="word-detail-modal-close" class="article-modal-close">&times;</button>
             </div>
-            <div class="article-modal-body" style="padding-top: 5px;">
-                
-                <!-- 3 Columns Layout -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 25px; background: #f8f9fa; padding: 15px; border-radius: 12px; border: 1px solid #eee;">
-                    <!-- Tiếng Việt -->
-                    <div>
-                        <div style="font-size: 12px; color: #6c757d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Tiếng Việt 🇻🇳</div>
-                        <div id="detail-modal-meaning" style="font-size: 18px; font-weight: 600; color: #212529;"></div>
-                    </div>
-                    <!-- Tiếng Trung -->
-                    <div style="border-left: 1px solid #dee2e6; padding-left: 15px;">
-                        <div style="font-size: 12px; color: #6c757d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Tiếng Trung 🇨🇳</div>
-                        <div id="detail-modal-chinese" style="font-size: 22px; font-weight: 700; color: #dc3545; margin: 0; line-height: 1.2;"></div>
-                    </div>
-                    <!-- Tiếng Anh -->
-                    <div style="border-left: 1px solid #dee2e6; padding-left: 15px;">
-                        <div style="font-size: 12px; color: #6c757d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Tiếng Anh 🇬🇧</div>
-                        <div id="detail-modal-pinyin" style="font-size: 18px; font-weight: 500; color: #007bff; margin: 0; line-height: 1.2;"></div>
-                    </div>
-                </div>
-                
-                <div id="detail-modal-images-container" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px;">
-                    <!-- Ảnh sẽ được đổ vào đây -->
-                </div>
-                
-                <div class="detail-info-row">
-                    <span class="detail-label">Giải thích (Explanation)</span>
-                    <div id="detail-modal-explanation" class="detail-text ql-editor" style="padding: 0;"></div>
-                </div>
+            <div class="article-modal-body" style="padding-top: 0;">
 
-                <div class="detail-info-row">
-                    <span class="detail-label">Ví dụ (Example)</span>
-                    <div id="detail-modal-example" class="detail-text ql-editor" style="background-color: #f3f8ff; border: 1px solid #ddecfe; padding: 10px; border-radius: 4px;"></div>
-                </div>
+                <!-- SOP Table -->
+                <table class="sop-detail-table">
+                    <thead>
+                        <tr>
+                            <th class="sop-col-label">MỤC</th>
+                            <th class="sop-col-vi">🇻🇳 VIỆT NAM</th>
+                            <th class="sop-col-zh">🇨🇳 中文</th>
+                            <th class="sop-col-en">🇬🇧 ENGLISH</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="sop-label">TỪ VỰNG<br><span class="sop-label-sub">术语 / Term</span></td>
+                            <td class="sop-cell sop-cell-vi" id="detail-modal-meaning"></td>
+                            <td class="sop-cell sop-cell-zh" id="detail-modal-chinese"></td>
+                            <td class="sop-cell sop-cell-en" id="detail-modal-pinyin"></td>
+                        </tr>
+                        <tr id="detail-row-images" style="display:none;">
+                            <td class="sop-label">HÌNH ẢNH<br><span class="sop-label-sub">图片 / Image</span></td>
+                            <td colspan="3" class="sop-cell" id="detail-modal-images-container" style="text-align: center;"></td>
+                        </tr>
+                        <tr id="detail-row-explanation">
+                            <td class="sop-label">GIẢI THÍCH<br><span class="sop-label-sub">说明 / Explanation</span></td>
+                            <td class="sop-cell" id="detail-modal-explanation-vi" style="line-height: 1.7;"></td>
+                            <td class="sop-cell" id="detail-modal-explanation-zh" style="line-height: 1.7;"></td>
+                            <td class="sop-cell" id="detail-modal-explanation-en" style="line-height: 1.7;"></td>
+                        </tr>
+                        <tr id="detail-row-example">
+                            <td class="sop-label">VÍ DỤ<br><span class="sop-label-sub">例句 / Example</span></td>
+                            <td class="sop-cell" id="detail-modal-example-vi" style="background: #f8fbff;"></td>
+                            <td class="sop-cell" id="detail-modal-example-zh" style="background: #f8fbff;"></td>
+                            <td class="sop-cell" id="detail-modal-example-en" style="background: #f8fbff;"></td>
+                        </tr>
+                    </tbody>
+                </table>
+
             </div>
         </div>
     </div>

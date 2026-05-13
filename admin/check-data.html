@@ -17,6 +17,13 @@
         .btn-export { background: #10b981; color: white; }
         .btn-export:hover { background: #059669; }
         .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-restore { background: #f59e0b; color: #1e293b; }
+        .btn-restore:hover { background: #d97706; }
+        .progress-bar { height: 6px; background: #334155; border-radius: 3px; margin: 10px 0; overflow: hidden; }
+        .progress-bar .fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #22d3ee); border-radius: 3px; transition: width 0.3s ease; }
+        .btn-staff { background: #8b5cf6; color: white; }
+        .btn-staff:hover { background: #7c3aed; }
         #output { background: #1e293b; padding: 20px; border-radius: 12px; font-family: monospace; font-size: 13px; white-space: pre-wrap; max-height: 70vh; overflow-y: auto; line-height: 1.6; }
         .highlight { color: #fbbf24; font-weight: bold; }
         .success { color: #34d399; }
@@ -46,6 +53,36 @@
         <button class="btn-scan" onclick="scanMeta()">📋 Xem Meta</button>
         <button class="btn-scan" onclick="checkAuditLogs()">📜 Xem Audit Logs Gần Đây</button>
         <button class="btn-export" onclick="exportBackup()">💾 Backup Toàn Bộ (JSON)</button>
+        <button class="btn-restore" onclick="document.getElementById('restoreFileInput').click()">📦 Restore từ File JSON</button>
+        <input type="file" id="restoreFileInput" accept=".json" style="display:none" onchange="restoreBackup(this)">
+        <button class="btn-staff" onclick="openAddStaffPanel()">👤 Thêm Nhân Viên Mới</button>
+    </div>
+
+    <!-- Add Staff Panel -->
+    <div id="staffPanel" style="display:none; background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155;">
+        <h3 style="color: #a78bfa; margin-bottom: 15px;">👤 Thêm Nhân Viên Mới (Không mất data cũ)</h3>
+        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 15px;">Chọn máy + tháng, nhập tên nhân viên → hệ thống sẽ thêm vào danh sách mà <strong style="color: #fbbf24;">KHÔNG ảnh hưởng</strong> data hiện tại.</p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+            <div>
+                <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Máy:</label>
+                <select id="staffMachine" style="padding: 8px 12px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid #475569; min-width: 120px;">
+                    <option value="">Đang tải...</option>
+                </select>
+            </div>
+            <div>
+                <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Tháng:</label>
+                <select id="staffMonth" style="padding: 8px 12px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid #475569; min-width: 140px;">
+                    <option value="">Chọn máy trước</option>
+                </select>
+            </div>
+            <div>
+                <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Tên NV mới:</label>
+                <input id="staffName" type="text" placeholder="Ví dụ: JACK" style="padding: 8px 12px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid #475569; width: 160px; text-transform: uppercase;">
+            </div>
+            <button class="btn-staff" onclick="addStaff()" style="height: 38px;">➕ Thêm</button>
+            <button onclick="document.getElementById('staffPanel').style.display='none'" style="height: 38px; padding: 8px 16px; background: #334155; color: #94a3b8; border: none; border-radius: 6px; cursor: pointer;">✕ Đóng</button>
+        </div>
+        <div id="staffCurrentList" style="margin-top: 12px; color: #64748b; font-size: 12px;"></div>
     </div>
     
     <div id="output">Nhấn nút "Quét Toàn Bộ Dữ Liệu" để bắt đầu...</div>
@@ -266,6 +303,335 @@
                 
             } catch (err) {
                 log('❌ Lỗi: ' + err.message, 'error');
+            }
+        }
+
+        // ══════════════════════════════════════════
+        // RESTORE FROM JSON BACKUP
+        // ══════════════════════════════════════════
+        async function restoreBackup(inputEl) {
+            const file = inputEl.files[0];
+            if (!file) return;
+            inputEl.value = ''; // reset để có thể chọn lại cùng file
+
+            output.innerHTML = '';
+            log('📦 Đang đọc file backup: ' + file.name, 'highlight');
+
+            try {
+                const text = await file.text();
+                const backup = JSON.parse(text);
+
+                // Validate structure
+                if (!backup.sheets || typeof backup.sheets !== 'object') {
+                    log('❌ File JSON không hợp lệ! Thiếu trường "sheets".', 'error');
+                    return;
+                }
+
+                const sheetCount = Object.keys(backup.sheets).length;
+                const hasMeta = !!backup.meta;
+                const exportDate = backup.exportedAt || 'Không rõ';
+
+                log(`📅 Ngày backup: ${exportDate}`);
+                log(`📄 Số sheets: ${sheetCount}`);
+                log(`📋 Meta: ${hasMeta ? 'Có' : 'Không có'}`);
+
+                // Count total customers in backup
+                let totalCustomers = 0;
+                for (const [id, data] of Object.entries(backup.sheets)) {
+                    totalCustomers += (data.customers || []).length;
+                }
+                log(`👥 Tổng KH trong backup: ${totalCustomers}`);
+                log('');
+
+                // Show machines and months in backup
+                if (hasMeta && backup.meta.machines) {
+                    log('📊 Chi tiết backup:', 'highlight');
+                    for (const [mKey, mData] of Object.entries(backup.meta.machines)) {
+                        log(`  🖥️ ${mData.name || mKey}`);
+                        if (mData.months) {
+                            for (const [month, monthData] of Object.entries(mData.months)) {
+                                const staffList = (monthData.sheetNames || []).join(', ');
+                                log(`     📅 ${month}: [${staffList}]`);
+                            }
+                        }
+                    }
+                    log('');
+                }
+
+                // Ask user for restore mode
+                const mode = confirm(
+                    `🔄 Restore ${sheetCount} sheets (${totalCustomers} KH)?\n\n` +
+                    `⚡ OK = GHI ĐÈ (xóa data cũ, ghi mới từ backup)\n` +
+                    `❌ Cancel = HỦY (không làm gì cả)\n\n` +
+                    `⚠️ Hãy chắc chắn đã backup data hiện tại trước khi restore!`
+                );
+
+                if (!mode) {
+                    log('❌ Đã hủy restore.', 'error');
+                    return;
+                }
+
+                // Double confirm
+                const doubleConfirm = confirm(
+                    '⚠️ XÁC NHẬN LẦN CUỐI\n\n' +
+                    'Toàn bộ dữ liệu hiện tại trên Firestore sẽ bị GHI ĐÈ bằng file backup.\n\n' +
+                    'Bạn CHẮC CHẮN muốn tiếp tục?'
+                );
+
+                if (!doubleConfirm) {
+                    log('❌ Đã hủy restore.', 'error');
+                    return;
+                }
+
+                log('🚀 Bắt đầu restore...', 'highlight');
+
+                // Progress bar
+                const progressHtml = '<div class="progress-bar"><div class="fill" id="restoreProgress" style="width:0%"></div></div>';
+                logHtml(progressHtml);
+                const progressFill = document.getElementById('restoreProgress');
+
+                const totalSteps = sheetCount + (hasMeta ? 1 : 0) + 1; // +1 for delete step
+                let step = 0;
+
+                const updateProgress = () => {
+                    step++;
+                    const pct = Math.min(Math.round((step / totalSteps) * 100), 100);
+                    if (progressFill) progressFill.style.width = pct + '%';
+                };
+
+                // Step 1: Delete old analytics_sheets
+                log('\n🗑️ Xóa dữ liệu cũ...', 'highlight');
+                const oldDocs = await db.collection('analytics_sheets').get();
+                if (!oldDocs.empty) {
+                    // Batch delete (max 500 per batch)
+                    const batchSize = 450;
+                    const allDocs = [];
+                    oldDocs.forEach(doc => allDocs.push(doc.ref));
+
+                    for (let i = 0; i < allDocs.length; i += batchSize) {
+                        const batch = db.batch();
+                        const chunk = allDocs.slice(i, i + batchSize);
+                        chunk.forEach(ref => batch.delete(ref));
+                        await batch.commit();
+                    }
+                    log(`  ✅ Đã xóa ${allDocs.length} documents cũ`, 'success');
+                } else {
+                    log('  ℹ️ Không có data cũ để xóa');
+                }
+                updateProgress();
+
+                // Step 2: Restore each sheet (batch write, max 450 per batch)
+                log('\n📤 Đang ghi dữ liệu từ backup...', 'highlight');
+                const sheetEntries = Object.entries(backup.sheets);
+                let writtenCount = 0;
+
+                for (let i = 0; i < sheetEntries.length; i += 450) {
+                    const batch = db.batch();
+                    const chunk = sheetEntries.slice(i, i + 450);
+
+                    for (const [docId, docData] of chunk) {
+                        const ref = db.collection('analytics_sheets').doc(docId);
+                        batch.set(ref, docData);
+                        writtenCount++;
+                    }
+
+                    await batch.commit();
+
+                    // Update progress for each doc in chunk
+                    chunk.forEach(() => updateProgress());
+
+                    log(`  ✅ Đã ghi ${Math.min(writtenCount, sheetCount)}/${sheetCount} sheets`, 'success');
+                }
+
+                // Step 3: Restore meta
+                if (hasMeta) {
+                    log('\n📋 Khôi phục Meta...', 'highlight');
+                    await db.collection('analytics').doc('meta').set(backup.meta);
+                    log('  ✅ Meta đã được khôi phục', 'success');
+                    updateProgress();
+                }
+
+                // Done!
+                if (progressFill) progressFill.style.width = '100%';
+                log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'highlight');
+                log('🎉 RESTORE HOÀN TẤT!', 'success');
+                log(`   📄 ${sheetCount} sheets đã được khôi phục`, 'success');
+                log(`   👥 ${totalCustomers} khách hàng`, 'success');
+                if (hasMeta) log(`   📋 Meta data đã được khôi phục`, 'success');
+                log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'highlight');
+                log('\n💡 Hãy F5 lại trang Dashboard để kiểm tra dữ liệu.', 'highlight');
+
+            } catch (err) {
+                log('\n❌ Lỗi restore: ' + err.message, 'error');
+                console.error(err);
+                log('\n⚠️ Nếu restore bị lỗi giữa chừng, hãy chạy lại restore với cùng file backup.', 'highlight');
+            }
+        }
+        // ══════════════════════════════════════════
+        // ADD STAFF (without losing data)
+        // ══════════════════════════════════════════
+        let _metaCache = null;
+
+        async function openAddStaffPanel() {
+            const panel = document.getElementById('staffPanel');
+            panel.style.display = 'block';
+            const machineSelect = document.getElementById('staffMachine');
+            const monthSelect = document.getElementById('staffMonth');
+
+            machineSelect.innerHTML = '<option value="">Đang tải...</option>';
+            monthSelect.innerHTML = '<option value="">Chọn máy trước</option>';
+
+            try {
+                const metaDoc = await db.collection('analytics').doc('meta').get();
+                if (!metaDoc.exists || !metaDoc.data().machines) {
+                    machineSelect.innerHTML = '<option value="">Không có máy nào!</option>';
+                    return;
+                }
+                _metaCache = metaDoc.data();
+                
+                machineSelect.innerHTML = '<option value="">-- Chọn máy --</option>';
+                for (const [key, mData] of Object.entries(_metaCache.machines)) {
+                    const opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = mData.name || key;
+                    machineSelect.appendChild(opt);
+                }
+
+                machineSelect.onchange = () => {
+                    const mKey = machineSelect.value;
+                    monthSelect.innerHTML = '';
+                    document.getElementById('staffCurrentList').textContent = '';
+                    if (!mKey || !_metaCache.machines[mKey]) return;
+
+                    const months = _metaCache.machines[mKey].months || {};
+                    if (Object.keys(months).length === 0) {
+                        monthSelect.innerHTML = '<option value="">Chưa có tháng nào</option>';
+                        return;
+                    }
+
+                    // Add "all months" option + individual months
+                    const allOpt = document.createElement('option');
+                    allOpt.value = '__all__';
+                    allOpt.textContent = '📌 Tất cả các tháng';
+                    monthSelect.appendChild(allOpt);
+
+                    for (const monthKey of Object.keys(months).sort().reverse()) {
+                        const opt = document.createElement('option');
+                        opt.value = monthKey;
+                        opt.textContent = monthKey;
+                        monthSelect.appendChild(opt);
+                    }
+
+                    // Show current staff when month changes
+                    monthSelect.onchange = () => {
+                        const selMonth = monthSelect.value;
+                        if (!selMonth) return;
+                        const listEl = document.getElementById('staffCurrentList');
+                        
+                        if (selMonth === '__all__') {
+                            // Collect all unique staff across all months
+                            const allStaff = new Set();
+                            for (const mData of Object.values(months)) {
+                                (mData.sheetNames || []).forEach(s => allStaff.add(s));
+                            }
+                            listEl.innerHTML = `<span style="color:#94a3b8;">📋 NV hiện tại (tất cả tháng): </span><span style="color:#e2e8f0;">${Array.from(allStaff).sort().join(', ')}</span>`;
+                        } else {
+                            const mData = months[selMonth];
+                            const names = (mData?.sheetNames || []).join(', ');
+                            listEl.innerHTML = `<span style="color:#94a3b8;">📋 NV tháng ${selMonth}: </span><span style="color:#e2e8f0;">${names || '(trống)'}</span>`;
+                        }
+                    };
+                    monthSelect.dispatchEvent(new Event('change'));
+                };
+            } catch (err) {
+                machineSelect.innerHTML = '<option value="">Lỗi: ' + err.message + '</option>';
+            }
+        }
+
+        async function addStaff() {
+            const machineKey = document.getElementById('staffMachine').value;
+            const monthKey = document.getElementById('staffMonth').value;
+            const rawName = document.getElementById('staffName').value.trim().toUpperCase();
+
+            if (!machineKey) { alert('Vui lòng chọn máy!'); return; }
+            if (!monthKey) { alert('Vui lòng chọn tháng!'); return; }
+            if (!rawName) { alert('Vui lòng nhập tên nhân viên!'); return; }
+
+            // Validate name: no special chars
+            if (!/^[A-Z0-9 ]+$/.test(rawName)) {
+                alert('Tên nhân viên chỉ nên chứa chữ cái và số (không dấu).');
+                return;
+            }
+
+            output.innerHTML = '';
+            const metaRef = db.collection('analytics').doc('meta');
+
+            try {
+                const metaDoc = await metaRef.get();
+                if (!metaDoc.exists) { log('❌ Không tìm thấy meta!', 'error'); return; }
+                const metaData = metaDoc.data();
+                const machine = metaData.machines[machineKey];
+                if (!machine) { log('❌ Không tìm thấy máy!', 'error'); return; }
+
+                // Determine which months to update
+                let monthsToUpdate = [];
+                if (monthKey === '__all__') {
+                    monthsToUpdate = Object.keys(machine.months || {});
+                } else {
+                    monthsToUpdate = [monthKey];
+                }
+
+                if (monthsToUpdate.length === 0) {
+                    log('❌ Không có tháng nào để cập nhật!', 'error');
+                    return;
+                }
+
+                let alreadyExists = false;
+                let updatedMonths = [];
+
+                for (const m of monthsToUpdate) {
+                    const monthData = machine.months[m];
+                    if (!monthData) continue;
+                    const sheets = monthData.sheetNames || [];
+
+                    if (sheets.includes(rawName)) {
+                        log(`⚠️ Tháng ${m}: "${rawName}" đã tồn tại, bỏ qua.`, 'badge-warn');
+                        alreadyExists = true;
+                        continue;
+                    }
+
+                    // Add to sheetNames
+                    sheets.push(rawName);
+                    metaData.machines[machineKey].months[m].sheetNames = sheets;
+                    updatedMonths.push(m);
+
+                    // Create empty sheet doc
+                    const docId = `machine_${machineKey}_${m}_${rawName}`;
+                    await db.collection('analytics_sheets').doc(docId).set({ customers: [] });
+                    log(`✅ Tháng ${m}: Đã tạo sheet "${rawName}" (${docId})`, 'success');
+                }
+
+                if (updatedMonths.length > 0) {
+                    // Update meta
+                    metaData.lastUpdated = firebase.firestore.FieldValue.serverTimestamp();
+                    await metaRef.set(metaData);
+                    log(`\n✅ Đã cập nhật Meta cho ${updatedMonths.length} tháng`, 'success');
+                    log(`\n🎉 Thêm nhân viên "${rawName}" thành công!`, 'success');
+                    log('💡 F5 lại Dashboard để thấy nhân viên mới trong dropdown.', 'highlight');
+                } else if (alreadyExists) {
+                    log(`\nℹ️ "${rawName}" đã có sẵn trong tất cả các tháng đã chọn.`, 'highlight');
+                }
+
+                // Clear input
+                document.getElementById('staffName').value = '';
+
+                // Refresh the current staff display
+                _metaCache = metaData;
+                document.getElementById('staffMonth').dispatchEvent(new Event('change'));
+
+            } catch (err) {
+                log('❌ Lỗi: ' + err.message, 'error');
+                console.error(err);
             }
         }
     </script>
