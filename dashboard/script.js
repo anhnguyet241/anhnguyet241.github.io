@@ -1729,17 +1729,12 @@ function openAddCustomerModal() {
     const role = window.currentUserRole || 'viewer';
     const userStaffName = window.currentUserEmail ? window.currentUserEmail.split('@')[0] : '';
     
-    if (role === 'staff') {
-        sheetNames = [userStaffName]; // Staff only creates for themselves
-    }
-    
     if (sheetNames.length === 0) {
-        if (role === 'admin') {
+        if (userStaffName) {
+            sheetNames = [userStaffName];
+        } else {
             alert(t('add_cust_err_staff'));
             return;
-        } else {
-            // Staff hasn't got a sheet yet, allow their name
-            sheetNames = [userStaffName];
         }
     }
     
@@ -1749,6 +1744,11 @@ function openAddCustomerModal() {
         opt.textContent = name;
         staffSelect.appendChild(opt);
     });
+
+    // Pre-select staff's own name if they're in the list
+    if (role === 'staff' && sheetNames.includes(userStaffName)) {
+        staffSelect.value = userStaffName;
+    }
 
     // Reset form
     $('addCustCode').value = '';
