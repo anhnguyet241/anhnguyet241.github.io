@@ -1703,11 +1703,29 @@ function openAddCustomerModal() {
         return;
     }
 
-    // Điền danh sách nhân viên vào dropdown
+    // Điền danh sách nhân viên vào dropdown — lấy từ TẤT CẢ các máy
     const staffSelect = $('addCustStaff');
     staffSelect.innerHTML = '';
     
-    let sheetNames = Object.keys(allSheetsData).sort();
+    // Collect all unique staff names from ALL machines in systemMeta
+    const allStaffNames = new Set();
+    if (systemMeta && systemMeta.machines) {
+        for (const [machineKey, machineData] of Object.entries(systemMeta.machines)) {
+            if (machineData.months) {
+                for (const [mKey, mData] of Object.entries(machineData.months)) {
+                    (mData.sheetNames || []).forEach(s => allStaffNames.add(s));
+                }
+            }
+            // Legacy (no months)
+            if (machineData.sheetNames) {
+                machineData.sheetNames.forEach(s => allStaffNames.add(s));
+            }
+        }
+    }
+    // Also include from current allSheetsData as fallback
+    Object.keys(allSheetsData).forEach(s => allStaffNames.add(s));
+    
+    let sheetNames = Array.from(allStaffNames).sort();
     const role = window.currentUserRole || 'viewer';
     const userStaffName = window.currentUserEmail ? window.currentUserEmail.split('@')[0] : '';
     
