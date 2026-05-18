@@ -1703,52 +1703,42 @@ function openAddCustomerModal() {
         return;
     }
 
-    // Điền danh sách nhân viên vào dropdown — lấy từ TẤT CẢ các máy
+    // --- Populate Machine dropdown ---
+    const machineSelect = $('addCustMachine');
     const staffSelect = $('addCustStaff');
-    staffSelect.innerHTML = '';
-    
-    // Collect all unique staff names from ALL machines in systemMeta
-    const allStaffNames = new Set();
-    if (systemMeta && systemMeta.machines) {
-        for (const [machineKey, machineData] of Object.entries(systemMeta.machines)) {
-            if (machineData.months) {
-                for (const [mKey, mData] of Object.entries(machineData.months)) {
-                    (mData.sheetNames || []).forEach(s => allStaffNames.add(s));
-                }
-            }
-            // Legacy (no months)
-            if (machineData.sheetNames) {
-                machineData.sheetNames.forEach(s => allStaffNames.add(s));
-            }
-        }
-    }
-    // Also include from current allSheetsData as fallback
-    Object.keys(allSheetsData).forEach(s => allStaffNames.add(s));
-    
-    let sheetNames = Array.from(allStaffNames).sort();
-    const role = window.currentUserRole || 'viewer';
-    const userStaffName = window.currentUserEmail ? window.currentUserEmail.split('@')[0] : '';
-    
-    if (sheetNames.length === 0) {
-        if (userStaffName) {
-            sheetNames = [userStaffName];
-        } else {
-            alert(t('add_cust_err_staff'));
-            return;
-        }
-    }
-    
-    sheetNames.forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        staffSelect.appendChild(opt);
-    });
+    machineSelect.innerHTML = '<option value="">' + (currentLang === 'zh' ? '-- 选择机器 --' : '-- Chọn máy --') + '</option>';
+    staffSelect.innerHTML = '<option value="">' + (currentLang === 'zh' ? '-- 先选机器 --' : '-- Chọn máy trước --') + '</option>';
+    staffSelect.disabled = true;
 
-    // Pre-select staff's own name if they're in the list
-    if (role === 'staff' && sheetNames.includes(userStaffName)) {
-        staffSelect.value = userStaffName;
+    if (systemMeta && systemMeta.machines) {
+        const machineIds = Object.keys(systemMeta.machines)
+            .map(k => k.replace('machine_', ''))
+            .sort((a, b) => Number(a) - Number(b));
+
+        machineIds.forEach(id => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = (currentLang === 'zh' ? '机器 ' : 'Máy ') + id;
+            machineSelect.appendChild(opt);
+        });
     }
+
+    // Pre-select current machine
+    if (window._currentMachineId) {
+        machineSelect.value = window._currentMachineId;
+        populateStaffForMachine(window._currentMachineId);
+    }
+
+    // Event: when machine changes → update staff dropdown
+    machineSelect.onchange = () => {
+        const selectedMachine = machineSelect.value;
+        if (selectedMachine) {
+            populateStaffForMachine(selectedMachine);
+        } else {
+            staffSelect.innerHTML = '<option value="">' + (currentLang === 'zh' ? '-- 先选机器 --' : '-- Chọn máy trước --') + '</option>';
+            staffSelect.disabled = true;
+        }
+    };
 
     // Reset form
     $('addCustCode').value = '';
@@ -1760,6 +1750,46 @@ function openAddCustomerModal() {
     document.body.style.overflow = 'hidden';
 
     setTimeout(() => $('addCustCode').focus(), 100);
+}
+
+// Helper: populate staff dropdown based on selected machine
+function populateStaffForMachine(machineId) {
+    const staffSelect = $('addCustStaff');
+    staffSelect.innerHTML = '';
+
+    const machineMeta = systemMeta?.machines?.[`machine_${machineId}`] || systemMeta?.machines?.[machineId];
+    if (!machineMeta) {
+        staffSelect.innerHTML = '<option value="">' + (currentLang === 'zh' ? '无员工数据' : 'Không có dữ liệu') + '</option>';
+        staffSelect.disabled = true;
+        return;
+    }
+
+    // Collect all staff from all months of this machine
+    const staffNames = new Set();
+    if (machineMeta.months) {
+        for (const [mKey, mData] of Object.entries(machineMeta.months)) {
+            (mData.sheetNames || []).forEach(s => staffNames.add(s));
+        }
+    }
+    // Legacy
+    if (machineMeta.sheetNames) {
+        machineMeta.sheetNames.forEach(s => staffNames.add(s));
+    }
+
+    const sorted = Array.from(staffNames).sort();
+    if (sorted.length === 0) {
+        staffSelect.innerHTML = '<option value="">' + (currentLang === 'zh' ? '该机器无员工' : 'Máy này chưa có NV') + '</option>';
+        staffSelect.disabled = true;
+        return;
+    }
+
+    sorted.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        staffSelect.appendChild(opt);
+    });
+    staffSelect.disabled = false;
 }
 
 function closeAddCustomerModal() {
@@ -1774,11 +1804,13 @@ async function saveNewCustomer() {
     const name = $('addCustName').value.trim();
     const cardType = $('addCustCardType').value.trim();
     const staffName = $('addCustStaff').value;
+    const selectedMachine = $('addCustMachine').value;
     const errEl = $('addCustError');
 
     // Validate
     if (!code) { errEl.textContent = t('add_cust_err_code'); errEl.style.display = 'block'; return; }
     if (!name) { errEl.textContent = t('add_cust_err_name'); errEl.style.display = 'block'; return; }
+    if (!selectedMachine) { errEl.textContent = currentLang === 'zh' ? '请选择机器' : 'Vui lòng chọn máy'; errEl.style.display = 'block'; return; }
     if (!staffName) { errEl.textContent = t('add_cust_err_staff'); errEl.style.display = 'block'; return; }
 
     // Check trùng mã
@@ -1797,7 +1829,7 @@ async function saveNewCustomer() {
     saveBtn.disabled = true;
     saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('add_cust_saving')}`;
 
-    const machineId = window._currentMachineId;
+    const machineId = selectedMachine;
     const monthKey = currentMonthKey;
     const docId = `machine_${machineId}_${monthKey}_${staffName}`;
 

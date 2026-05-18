@@ -636,8 +636,12 @@
                     <input type="text" id="addCustCardType" placeholder="apple, steam, razer..." autocomplete="off" />
                 </div>
                 <div class="add-form-row">
+                    <label data-i18n="add_cust_machine">机器 (Máy)</label>
+                    <select id="addCustMachine"><option value="">-- Chọn máy --</option></select>
+                </div>
+                <div class="add-form-row">
                     <label data-i18n="add_cust_staff">所属员工</label>
-                    <select id="addCustStaff"></select>
+                    <select id="addCustStaff" disabled><option value="">-- Chọn máy trước --</option></select>
                 </div>
                 <div id="addCustError" class="add-form-error" style="display:none;"></div>
                 <div class="add-form-actions">
