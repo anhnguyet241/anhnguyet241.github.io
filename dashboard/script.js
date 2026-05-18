@@ -1765,18 +1765,32 @@ function populateStaffForMachine(machineId) {
     }
 
     // Collect all staff from all months of this machine
-    const staffNames = new Set();
+    const staffNamesMap = new Map();
+    
+    function addName(s) {
+        const name = (s || '').trim();
+        if (name) {
+            // Create a normalized key: lowercase, remove zero-width chars, collapse multiple spaces
+            const key = name.toLowerCase()
+                            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+                            .replace(/\s+/g, ' ');
+            if (!staffNamesMap.has(key)) {
+                staffNamesMap.set(key, name); // Keep the first original casing we find
+            }
+        }
+    }
+
     if (machineMeta.months) {
         for (const [mKey, mData] of Object.entries(machineMeta.months)) {
-            (mData.sheetNames || []).forEach(s => staffNames.add(s));
+            (mData.sheetNames || []).forEach(addName);
         }
     }
     // Legacy
     if (machineMeta.sheetNames) {
-        machineMeta.sheetNames.forEach(s => staffNames.add(s));
+        machineMeta.sheetNames.forEach(addName);
     }
 
-    const sorted = Array.from(staffNames).sort();
+    const sorted = Array.from(staffNamesMap.values()).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
     if (sorted.length === 0) {
         staffSelect.innerHTML = '<option value="">' + (currentLang === 'zh' ? '该机器无员工' : 'Máy này chưa có NV') + '</option>';
         staffSelect.disabled = true;
