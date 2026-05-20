@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Đợi auth.js xác thực xong mới load dữ liệu
 document.addEventListener('authReady', async () => {
+    await loadManualRevenue();
     await loadFromFirestore();
 });
 
@@ -101,46 +102,43 @@ function setupNavigation() {
 async function loadFromFirestore() {
     try {
         const metaDoc = await db.collection('revenue').doc('meta').get();
-        if (!metaDoc.exists) {
-            $('splashScreen').style.display = 'none';
-            $('noDataScreen').style.display = 'flex';
-            return;
-        }
+        if (metaDoc.exists) {
+            const meta = metaDoc.data();
+            availableMonths = meta.months || [];
 
-        const meta = metaDoc.data();
-        availableMonths = meta.months || [];
-        if (availableMonths.length === 0) {
-            $('splashScreen').style.display = 'none';
-            $('noDataScreen').style.display = 'flex';
-            return;
-        }
+            for (const monthKey of availableMonths) {
+                const doc = await db.collection('revenue').doc(monthKey).get();
+                if (doc.exists) allMonthsData[monthKey] = doc.data();
+            }
 
-        // Load each month document
-        for (const monthKey of availableMonths) {
-            const doc = await db.collection('revenue').doc(monthKey).get();
-            if (doc.exists) {
-                allMonthsData[monthKey] = doc.data();
+            if (meta.lastUpdated) {
+                const d = meta.lastUpdated.toDate();
+                const locale = currentLang === 'zh' ? 'zh-CN' : 'vi-VN';
+                $('dataInfoText').textContent = t('updated_at') +
+                    d.toLocaleDateString(locale) + ' ' +
+                    d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+                $('dataInfoText').removeAttribute('data-i18n');
             }
         }
 
-        // Update timestamp
-        if (meta.lastUpdated) {
-            const d = meta.lastUpdated.toDate();
-            const locale = currentLang === 'zh' ? 'zh-CN' : 'vi-VN';
-            $('dataInfoText').textContent = t('updated_at') +
-                d.toLocaleDateString(locale) + ' ' +
-                d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-            $('dataInfoText').removeAttribute('data-i18n');
-        }
-
-        // Populate month selectors
+        // Populate (merges Excel + manual months)
         populateMonthSelects();
 
-        // Set default month (latest)
+        // If we have any months at all (Excel or manual), show the dashboard
+        if (availableMonths.length === 0 && Object.keys(manualRevenueData).length === 0) {
+            $('splashScreen').style.display = 'none';
+            $('noDataScreen').style.display = 'flex';
+            return;
+        }
+
+        // Default to latest month, or current month if no Excel data
         currentMonth = availableMonths[availableMonths.length - 1];
+        if (!currentMonth) {
+            const now = new Date();
+            currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
         $('monthSelect').value = currentMonth;
 
-        // Render
         $('splashScreen').style.display = 'none';
         $('dashboardGrid').style.display = 'block';
         renderOverview();
@@ -153,25 +151,45 @@ async function loadFromFirestore() {
 }
 
 function populateMonthSelects() {
+    // Merge months from Excel + manual data
+    const allMonthSet = new Set(availableMonths);
+    Object.keys(manualRevenueData).forEach(docId => {
+        const parts = docId.split('_');
+        // docId format: 微信001_2026-05
+        const monthKey = parts.slice(1).join('_'); // "2026-05"
+        if (monthKey && monthKey.match(/^\d{4}-\d{2}$/)) allMonthSet.add(monthKey);
+    });
+    const mergedMonths = [...allMonthSet].sort();
+
     const selects = [$('monthSelect'), $('compareMonthA'), $('compareMonthB')];
-    const monthLabels = { '01': 'month_jan', '02': 'month_feb', '03': 'month_mar', '04': 'month_apr' };
+    const monthLabels = {
+        '01': 'month_jan', '02': 'month_feb', '03': 'month_mar', '04': 'month_apr',
+        '05': 'Tháng 5', '06': 'Tháng 6', '07': 'Tháng 7', '08': 'Tháng 8',
+        '09': 'Tháng 9', '10': 'Tháng 10', '11': 'Tháng 11', '12': 'Tháng 12',
+    };
 
     selects.forEach(sel => {
         if (!sel) return;
         sel.innerHTML = '';
-        availableMonths.forEach(key => {
+        mergedMonths.forEach(key => {
             const mm = key.split('-')[1];
             const opt = document.createElement('option');
             opt.value = key;
-            opt.textContent = t(monthLabels[mm] || ('Tháng ' + parseInt(mm)));
+            const label = monthLabels[mm];
+            opt.textContent = label && label.startsWith('month_') ? t(label) : (currentLang === 'zh' ? (parseInt(mm) + '月') : ('Tháng ' + parseInt(mm)));
             sel.appendChild(opt);
         });
     });
 
     // Default compare: last 2 months
-    if ($('compareMonthA') && availableMonths.length >= 2) {
-        $('compareMonthA').value = availableMonths[availableMonths.length - 2];
-        $('compareMonthB').value = availableMonths[availableMonths.length - 1];
+    if ($('compareMonthA') && mergedMonths.length >= 2) {
+        $('compareMonthA').value = mergedMonths[mergedMonths.length - 2];
+        $('compareMonthB').value = mergedMonths[mergedMonths.length - 1];
+    }
+
+    // Update availableMonths if new months appeared
+    if (mergedMonths.length > availableMonths.length) {
+        availableMonths = mergedMonths;
     }
 }
 
@@ -205,72 +223,90 @@ function convertDateHeader(h) {
 // ══════════════════════════════════════
 // SECTION 1: OVERVIEW
 // ══════════════════════════════════════
+let manualRevenueData = {}; // { machineId: { days: { "1": {card,pc,transfer}, ... } } }
+let _revPopupEl = null;
+
+async function loadManualRevenue() {
+    try {
+        const snap = await db.collection('revenue_daily').get();
+        snap.forEach(doc => {
+            manualRevenueData[doc.id] = doc.data();
+        });
+    } catch (e) { console.warn('Manual revenue load:', e); }
+}
+
+function getManualDayData(machineId, monthKey, day) {
+    const docId = `${machineId}_${monthKey}`;
+    return manualRevenueData[docId]?.days?.[String(day)] || null;
+}
+
 function renderOverview() {
     const data = allMonthsData[currentMonth];
-    if (!data) return;
-
-    const { dailySales, dailyTransfers, weeklySales, weeklyTransfers, dateHeaders, weekHeaders } = data;
-
-    // Determine which machines to include
     const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
 
-    // ── Calculate totals ──
+    // Parse month/year from currentMonth
+    const [yearStr, monthStr] = (currentMonth || '2026-01').split('-');
+    const year = parseInt(yearStr);
+    const month = parseInt(monthStr);
+
+    // Calculate KPIs from Excel data + manual data
     let totalSales = 0, totalTransfer = 0;
-    const dailyTotalSales = [];
-    const dailyTotalTransfers = [];
+    let numDays = 0;
 
-    const numDays = dateHeaders ? dateHeaders.length : 0;
-
-    for (let d = 0; d < numDays; d++) {
-        let dayS = 0, dayT = 0;
-        activeMachines.forEach(m => {
-            dayS += (dailySales?.[m]?.[d] || 0);
-            dayT += (dailyTransfers?.[m]?.[d] || 0);
-        });
-        dailyTotalSales.push(dayS);
-        dailyTotalTransfers.push(dayT);
-        totalSales += dayS;
-        totalTransfer += dayT;
+    if (data) {
+        const { dailySales, dailyTransfers, dateHeaders } = data;
+        numDays = dateHeaders ? dateHeaders.length : 0;
+        for (let d = 0; d < numDays; d++) {
+            activeMachines.forEach(m => {
+                totalSales += (dailySales?.[m]?.[d] || 0);
+                totalTransfer += (dailyTransfers?.[m]?.[d] || 0);
+            });
+        }
     }
 
-    const avgDaily = numDays > 0 ? totalSales / numDays : 0;
-
-    // ── Peak days: calculated PER MACHINE ──
-    const perMachinePeaks = {};
+    // Also add manual data totals
+    const daysInMonth = new Date(year, month, 0).getDate();
     activeMachines.forEach(m => {
-        let count = 0;
-        for (let d = 0; d < numDays; d++) {
-            if ((dailySales?.[m]?.[d] || 0) > 10000) count++;
+        for (let d = 1; d <= daysInMonth; d++) {
+            const manual = getManualDayData(m, currentMonth, d);
+            if (manual) {
+                totalSales += (manual.card || 0) + (manual.pc || 0);
+                totalTransfer += (manual.transfer || 0);
+                if (!data) numDays++;
+            }
         }
-        perMachinePeaks[m] = count;
     });
 
-    // KPI: if single machine show its count, if all show average
-    if (activeMachines.length === 1) {
-        const pk = perMachinePeaks[activeMachines[0]];
-        $('kpiPeakDays').textContent = pk + ' / ' + numDays;
-    } else {
-        const totalPk = Object.values(perMachinePeaks).reduce((s, v) => s + v, 0);
-        const avgPk = (totalPk / activeMachines.length).toFixed(0);
-        $('kpiPeakDays').textContent = `⌀ ${avgPk} / ${numDays}`;
+    if (numDays === 0) numDays = daysInMonth;
+    const avgDaily = numDays > 0 ? totalSales / numDays : 0;
+
+    // Peak days
+    let peakCount = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+        let dayTotal = 0;
+        activeMachines.forEach(m => {
+            const manual = getManualDayData(m, currentMonth, d);
+            if (manual) dayTotal += (manual.card || 0) + (manual.pc || 0);
+        });
+        // Also check Excel data
+        if (data?.dateHeaders) {
+            const idx = d - 1;
+            if (idx < data.dateHeaders.length) {
+                activeMachines.forEach(m => {
+                    dayTotal += (data.dailySales?.[m]?.[idx] || 0);
+                });
+            }
+        }
+        if (dayTotal > 10000) peakCount++;
     }
 
-    // ── KPI Cards ──
     $('kpiTotalSales').textContent = fmt(totalSales);
     $('kpiTotalTransfer').textContent = fmt(totalTransfer);
     $('kpiAvgDaily').textContent = fmt(avgDaily);
+    $('kpiPeakDays').textContent = peakCount + ' / ' + daysInMonth;
 
-    // ── Daily Chart ──
-    renderDailyChart(dateHeaders, dailyTotalSales, dailyTotalTransfers);
-
-    // ── Threshold Chart (per-machine) ──
-    renderThresholdChart(perMachinePeaks, numDays, activeMachines);
-
-    // ── Machine Table ──
-    renderMachineTable(data, activeMachines);
-
-    // ── Top 5 Days ──
-    renderTop5(dateHeaders, dailyTotalSales, totalSales);
+    // Render calendar
+    renderRevenueCalendar(year, month);
 }
 
 function renderDailyChart(dates, sales, transfers) {
@@ -817,11 +853,281 @@ function reRenderAll() {
         $('monthSelect').value = currentMonth;
         renderOverview();
     }
-    // Re-render active section
     const activeNav = document.querySelector('.nav-item.active[data-section]');
     if (activeNav) {
         const sec = activeNav.dataset.section;
         if (sec === 'compare') renderCompare();
         if (sec === 'trends') renderTrends();
+    }
+}
+
+// ══════════════════════════════════════
+// REVENUE CALENDAR
+// ══════════════════════════════════════
+
+function renderRevenueCalendar(year, month) {
+    const cal = $('revCalendar');
+    if (!cal) return;
+    cal.innerHTML = '';
+    closeRevPopup();
+
+    const isAllMachines = currentMachine === '__all__';
+    const activeMachines = isAllMachines ? MACHINE_NAMES : [currentMachine];
+    const info = $('revCalInfo');
+    if (info) {
+        info.textContent = isAllMachines ? t('rev_select_machine') : currentMachine;
+    }
+
+    // Weekday headers
+    const weekdays = t('rev_weekdays') || ['T2','T3','T4','T5','T6','T7','CN'];
+    weekdays.forEach(wd => {
+        const el = document.createElement('div');
+        el.className = 'rev-cal-weekday';
+        el.textContent = wd;
+        cal.appendChild(el);
+    });
+
+    const firstDay = new Date(year, month - 1, 1).getDay(); // 0=Sun
+    const startOffset = firstDay === 0 ? 6 : firstDay - 1; // Mon=0
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const today = new Date();
+
+    // Empty cells before day 1
+    for (let i = 0; i < startOffset; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'rev-cal-day empty';
+        cal.appendChild(empty);
+    }
+
+    // Day cells
+    for (let d = 1; d <= daysInMonth; d++) {
+        const cell = document.createElement('div');
+        cell.className = 'rev-cal-day';
+        if (isAllMachines) cell.classList.add('readonly');
+
+        // Check today
+        if (year === today.getFullYear() && month === today.getMonth() + 1 && d === today.getDate()) {
+            cell.classList.add('today');
+        }
+
+        // Get data for this day — manual + Excel
+        let totalCard = 0, totalPc = 0, totalTransfer = 0;
+        let excelSales = 0, excelTransfer = 0;
+
+        // Excel data (old imported sheets)
+        const excelData = allMonthsData[currentMonth];
+        if (excelData && excelData.dateHeaders) {
+            excelData.dateHeaders.forEach((hdr, idx) => {
+                // Parse day from header like "4月15日" or "1月5日"
+                const match = String(hdr).match(/(\d+)月(\d+)日/);
+                const headerDay = match ? parseInt(match[2]) : (idx + 1);
+                if (headerDay === d) {
+                    activeMachines.forEach(m => {
+                        excelSales += (excelData.dailySales?.[m]?.[idx] || 0);
+                        excelTransfer += (excelData.dailyTransfers?.[m]?.[idx] || 0);
+                    });
+                }
+            });
+        }
+
+        // Manual data (hand-entered)
+        activeMachines.forEach(m => {
+            const manual = getManualDayData(m, currentMonth, d);
+            if (manual) {
+                totalCard += (manual.card || 0);
+                totalPc += (manual.pc || 0);
+                totalTransfer += (manual.transfer || 0);
+            }
+        });
+
+        // If no manual data, treat Excel sales as total (unsplit)
+        const dayTotal = (totalCard + totalPc) || excelSales;
+        const dayTransfer = totalTransfer || excelTransfer;
+        const hasData = dayTotal > 0 || dayTransfer > 0;
+        if (hasData) cell.classList.add('has-data');
+
+        // Day number
+        const numEl = document.createElement('div');
+        numEl.className = 'rev-cal-day-num';
+        numEl.textContent = d;
+        cell.appendChild(numEl);
+
+        if (hasData) {
+            const totalEl = document.createElement('div');
+            totalEl.className = 'rev-cal-day-total';
+            totalEl.textContent = fmt(dayTotal);
+            cell.appendChild(totalEl);
+
+            const detailEl = document.createElement('div');
+            detailEl.className = 'rev-cal-day-details';
+            if (totalCard > 0 || totalPc > 0) {
+                // Manual data with split
+                detailEl.innerHTML = `<span class="detail-card">💳${fmt(totalCard)}</span> <span class="detail-pc">🖥${fmt(totalPc)}</span>`;
+            }
+            if (dayTransfer > 0) {
+                detailEl.innerHTML += ` <span class="detail-transfer">💸${fmt(dayTransfer)}</span>`;
+            }
+            cell.appendChild(detailEl);
+        }
+
+        // Click handler
+        if (!isAllMachines) {
+            const dayNum = d;
+            cell.addEventListener('click', () => openRevDayPopup(cell, dayNum, year, month));
+        }
+
+        cal.appendChild(cell);
+    }
+}
+
+function closeRevPopup() {
+    if (_revPopupEl) { _revPopupEl.remove(); _revPopupEl = null; }
+    document.querySelectorAll('.rev-cal-day.editing').forEach(el => el.classList.remove('editing'));
+}
+
+function openRevDayPopup(cell, day, year, month) {
+    if (window.currentUserRole === 'viewer') return;
+    closeRevPopup();
+
+    const machineId = currentMachine;
+    const monthKey = currentMonth;
+    const existing = getManualDayData(machineId, monthKey, day);
+    const curCard = existing?.card || 0;
+    const curPc = existing?.pc || 0;
+    const curTransfer = existing?.transfer || 0;
+
+    cell.classList.add('editing');
+
+    const popup = document.createElement('div');
+    popup.className = 'rev-cal-popup';
+    popup.innerHTML = `
+        <div class="rev-cal-popup-title">
+            <i class="fas fa-edit"></i> ${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}
+        </div>
+        <div class="rev-cal-popup-group">
+            <div class="rev-cal-popup-label"><i class="fas fa-credit-card" style="color:#3b82f6"></i> ${t('rev_card_sales')}</div>
+            <input type="number" class="rev-cal-popup-input" id="revInputCard" value="${curCard}" min="0" step="1" placeholder="0">
+        </div>
+        <div class="rev-cal-popup-group">
+            <div class="rev-cal-popup-label"><i class="fas fa-desktop" style="color:#8b5cf6"></i> ${t('rev_pc_sales')}</div>
+            <input type="number" class="rev-cal-popup-input" id="revInputPc" value="${curPc}" min="0" step="1" placeholder="0">
+        </div>
+        <div class="rev-cal-popup-group">
+            <div class="rev-cal-popup-label"><i class="fas fa-money-bill-transfer" style="color:#ff8c00"></i> ${t('rev_transfer')}</div>
+            <input type="number" class="rev-cal-popup-input" id="revInputTransfer" value="${curTransfer}" min="0" step="1" placeholder="0">
+        </div>
+        <div class="rev-cal-popup-total">
+            <span>${t('rev_total')}:</span>
+            <strong id="revPopupTotal">${fmt(curCard + curPc)}</strong>
+        </div>
+        <div class="rev-cal-popup-actions">
+            <button class="rev-cal-popup-btn cancel" id="revCancelBtn"><i class="fas fa-times"></i> ${t('rev_cancel')}</button>
+            <button class="rev-cal-popup-btn save" id="revSaveBtn"><i class="fas fa-check"></i> ${t('rev_save')}</button>
+        </div>
+    `;
+
+    const calEl = $('revCalendar');
+    calEl.style.position = 'relative';
+    calEl.appendChild(popup);
+
+    // Position popup near cell
+    const cellRect = cell.getBoundingClientRect();
+    const calRect = calEl.getBoundingClientRect();
+    let left = cellRect.left - calRect.left + cellRect.width / 2 - 120;
+    let top = cellRect.bottom - calRect.top + 8;
+    if (left < 0) left = 4;
+    if (left + 240 > calRect.width) left = calRect.width - 244;
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+    _revPopupEl = popup;
+
+    // Auto-update total
+    const updateTotal = () => {
+        const c = parseInt($('revInputCard')?.value) || 0;
+        const p = parseInt($('revInputPc')?.value) || 0;
+        const totalEl = $('revPopupTotal');
+        if (totalEl) totalEl.textContent = fmt(c + p);
+    };
+    popup.querySelectorAll('.rev-cal-popup-input').forEach(inp => {
+        inp.addEventListener('input', updateTotal);
+        inp.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); doSave(); }
+            if (e.key === 'Escape') closeRevPopup();
+        });
+    });
+
+    // Focus first input
+    setTimeout(() => { const i = $('revInputCard'); if (i) { i.focus(); i.select(); } }, 60);
+
+    // Cancel
+    popup.querySelector('#revCancelBtn').addEventListener('click', () => closeRevPopup());
+
+    // Save
+    const doSave = () => {
+        const card = parseInt($('revInputCard').value) || 0;
+        const pc = parseInt($('revInputPc').value) || 0;
+        const transfer = parseInt($('revInputTransfer').value) || 0;
+        saveRevDayData(day, card, pc, transfer, cell);
+    };
+    popup.querySelector('#revSaveBtn').addEventListener('click', doSave);
+
+    // Click outside
+    setTimeout(() => {
+        const handler = e => {
+            if (_revPopupEl && !_revPopupEl.contains(e.target) && !cell.contains(e.target)) {
+                closeRevPopup();
+                document.removeEventListener('click', handler);
+            }
+        };
+        document.addEventListener('click', handler);
+    }, 100);
+}
+
+async function saveRevDayData(day, card, pc, transfer, cell) {
+    const saveBtn = document.querySelector('#revSaveBtn');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('rev_saving')}`;
+    }
+
+    const machineId = currentMachine;
+    const monthKey = currentMonth;
+    const docId = `${machineId}_${monthKey}`;
+    const dayStr = String(day);
+
+    try {
+        const docRef = db.collection('revenue_daily').doc(docId);
+        const doc = await docRef.get();
+
+        let days = {};
+        if (doc.exists) days = doc.data().days || {};
+        days[dayStr] = { card, pc, transfer };
+
+        await docRef.set({
+            days,
+            machineId,
+            monthKey,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // Update local cache
+        if (!manualRevenueData[docId]) manualRevenueData[docId] = { days: {} };
+        manualRevenueData[docId].days[dayStr] = { card, pc, transfer };
+
+        closeRevPopup();
+
+        // Flash animation
+        if (cell) {
+            cell.classList.add('just-saved');
+            setTimeout(() => cell.classList.remove('just-saved'), 900);
+        }
+
+        // Re-render
+        renderOverview();
+
+    } catch (err) {
+        console.error('Save revenue error:', err);
+        alert('Lỗi: ' + err.message);
+        closeRevPopup();
     }
 }

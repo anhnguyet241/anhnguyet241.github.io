@@ -207,35 +207,13 @@
                     </div>
                 </div>
 
-                <!-- Row: Daily Chart + Threshold Donut -->
-                <div class="chart-row">
-                    <div class="glass-card chart-card chart-wide">
-                        <h3 class="card-title" data-i18n="daily_chart_title">每日营业额走势</h3>
-                        <p class="card-subtitle" data-i18n="daily_chart_sub">蓝色柱 = 营业额，橙色线 = 转账额</p>
-                        <div class="chart-container"><canvas id="dailyChart"></canvas></div>
+                <!-- Revenue Calendar Widget -->
+                <div class="glass-card chart-card" style="grid-column: 1 / -1;">
+                    <div class="rev-cal-header">
+                        <h3 class="card-title" data-i18n="rev_cal_title">营收日历</h3>
+                        <div class="rev-cal-info" id="revCalInfo"></div>
                     </div>
-                    <div class="glass-card chart-card chart-narrow">
-                        <h3 class="card-title" data-i18n="threshold_title">营业额分布</h3>
-                        <div class="chart-container chart-donut"><canvas id="thresholdChart"></canvas></div>
-                        <div id="thresholdInfo" class="threshold-info"></div>
-                    </div>
-                </div>
-
-                <!-- Row: Machine Table + Top 5 -->
-                <div class="chart-row">
-                    <div class="glass-card chart-card chart-wide">
-                        <h3 class="card-title" data-i18n="machine_table_title">各设备营收明细</h3>
-                        <div class="table-scroll">
-                            <table class="data-table" id="machineTable">
-                                <thead id="machineTableHead"></thead>
-                                <tbody id="machineTableBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="glass-card chart-card chart-narrow">
-                        <h3 class="card-title" data-i18n="top5_title">营业额最高的5天</h3>
-                        <div class="top5-list" id="top5List"></div>
-                    </div>
+                    <div class="rev-calendar" id="revCalendar"></div>
                 </div>
             </section>
 

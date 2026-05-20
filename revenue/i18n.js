@@ -98,6 +98,19 @@ const TRANSLATIONS = {
         trends_stacked_sub: '堆叠图展示每台设备对总营收的贡献',
         trends_weekly_title: '周度营收热力图',
 
+        // Revenue Calendar
+        rev_cal_title: '营收日历',
+        rev_card_sales: '卡交易量',
+        rev_pc_sales: 'PC交易量',
+        rev_transfer: '转账额',
+        rev_total: '合计',
+        rev_save: '保存',
+        rev_cancel: '取消',
+        rev_saving: '保存中...',
+        rev_save_success: '✅ 已保存！',
+        rev_select_machine: '请选择单台设备后可编辑日历',
+        rev_weekdays: ['一', '二', '三', '四', '五', '六', '日'],
+
         // Misc
         updated_at: '更新于：',
         switch_lang: '切换语言',
@@ -199,6 +212,19 @@ const TRANSLATIONS = {
         trends_stacked_title: 'Đóng Góp Doanh Số Từng Máy',
         trends_stacked_sub: 'Biểu đồ chồng thể hiện phần đóng góp của mỗi máy',
         trends_weekly_title: 'Bản Đồ Nhiệt Doanh Số Theo Tuần',
+
+        // Revenue Calendar
+        rev_cal_title: 'Lịch Doanh Số',
+        rev_card_sales: 'Doanh số Thẻ',
+        rev_pc_sales: 'Doanh số PC',
+        rev_transfer: 'Tiền Chuyển',
+        rev_total: 'Tổng',
+        rev_save: 'Lưu',
+        rev_cancel: 'Hủy',
+        rev_saving: 'Đang lưu...',
+        rev_save_success: '✅ Đã lưu!',
+        rev_select_machine: 'Vui lòng chọn 1 máy cụ thể để nhập doanh số',
+        rev_weekdays: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
 
         // Misc
         updated_at: 'Cập nhật: ',
