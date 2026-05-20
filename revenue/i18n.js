@@ -17,11 +17,13 @@ const TRANSLATIONS = {
 
         nav_grp_customer: '👥 客户分析',
         nav_grp_revenue: '💰 营收分析',
-        nav_rev_overview: '营收总览',
+        nav_rev_overview: '营收日历',
+        nav_rev_report: '报表',
         nav_rev_compare: '月份对比',
         nav_rev_trends: '趋势图表',
 
-        title_overview: '营收总览',
+        title_overview: '营收日历',
+        title_report: '营收报表',
         title_compare: '月份对比分析',
         title_trends: '历史趋势图表',
 
@@ -136,11 +138,13 @@ const TRANSLATIONS = {
 
         nav_grp_customer: '👥 Phân Tích Khách Hàng',
         nav_grp_revenue: '💰 Phân Tích Doanh Số',
-        nav_rev_overview: 'Doanh Số Tổng',
+        nav_rev_overview: 'Lịch Doanh Số',
+        nav_rev_report: 'Báo Cáo',
         nav_rev_compare: 'So Sánh Tháng',
         nav_rev_trends: 'Biểu Đồ Xu Hướng',
 
-        title_overview: 'Tổng Quan Doanh Thu',
+        title_overview: 'Lịch Doanh Số',
+        title_report: 'Báo Cáo Doanh Thu',
         title_compare: 'So Sánh Doanh Thu Giữa Các Tháng',
         title_trends: 'Biểu Đồ Xu Hướng Lịch Sử',
 

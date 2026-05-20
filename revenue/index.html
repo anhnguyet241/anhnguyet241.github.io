@@ -80,10 +80,13 @@
             <!-- SECTION 2: REVENUE -->
             <div class="nav-section-title" data-i18n="nav_grp_revenue">💰 营收分析</div>
             <a href="#overview" class="nav-item active" data-section="overview">
-                <i class="fas fa-wallet"></i><span data-i18n="nav_rev_overview">营收总览</span>
+                <i class="fas fa-calendar-alt"></i><span data-i18n="nav_rev_overview">Lịch Doanh Số</span>
+            </a>
+            <a href="#report" class="nav-item" data-section="report">
+                <i class="fas fa-chart-pie"></i><span data-i18n="nav_rev_report">Báo Cáo</span>
             </a>
             <a href="#compare" class="nav-item" data-section="compare">
-                <i class="fas fa-scale-balanced"></i><span data-i18n="nav_rev_compare">月份对比</span>
+                <i class="fas fa-scale-balanced"></i><span data-i18n="nav_rev_compare">So Sánh Tháng</span>
             </a>
             <a href="#trends" class="nav-item" data-section="trends">
                 <i class="fas fa-arrow-trend-up"></i><span data-i18n="nav_rev_trends">趋势图表</span>
@@ -220,6 +223,73 @@
                             <div class="rev-cal-info" id="revCalInfo"></div>
                         </div>
                         <div class="rev-calendar" id="revCalendar"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ SECTION: REPORT (for boss) ═══ -->
+            <section class="section-block" id="section-report" style="display:none;">
+                <!-- KPI Cards -->
+                <div class="stats-row">
+                    <div class="stat-card glass-card card-sales">
+                        <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="kpi_total_sales">Tổng Doanh Số Tháng</span>
+                            <span class="stat-value" id="rptTotalSales">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card card-transfer">
+                        <div class="stat-icon"><i class="fas fa-money-bill-transfer"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="kpi_total_transfer">Tổng Tiền Chuyển Tháng</span>
+                            <span class="stat-value" id="rptTotalTransfer">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card card-avg">
+                        <div class="stat-icon"><i class="fas fa-calculator"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="kpi_avg_daily">Doanh Số TB/Ngày</span>
+                            <span class="stat-value" id="rptAvgDaily">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card card-peak">
+                        <div class="stat-icon"><i class="fas fa-fire"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="kpi_peak_days">Ngày Cao Điểm</span>
+                            <span class="stat-value" id="rptPeakDays">0</span>
+                            <span class="stat-sub" data-i18n="kpi_peak_days_desc">Doanh số > 10,000</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row: Daily Chart + Distribution Donut -->
+                <div class="chart-row">
+                    <div class="glass-card chart-card chart-wide">
+                        <h3 class="card-title" data-i18n="daily_chart_title">Biến Động Doanh Số Hàng Ngày</h3>
+                        <p class="card-subtitle" data-i18n="daily_chart_sub">Cột xanh = Doanh số, Đường cam = Tiền chuyển</p>
+                        <div class="chart-container"><canvas id="dailyChart"></canvas></div>
+                    </div>
+                    <div class="glass-card chart-card chart-narrow">
+                        <h3 class="card-title" data-i18n="threshold_title">Phân Bổ Doanh Số</h3>
+                        <div class="chart-container chart-donut"><canvas id="thresholdChart"></canvas></div>
+                        <div id="thresholdInfo" class="threshold-info"></div>
+                    </div>
+                </div>
+
+                <!-- Row: Machine Table + Top 5 -->
+                <div class="chart-row">
+                    <div class="glass-card chart-card chart-wide">
+                        <h3 class="card-title" data-i18n="machine_table_title">Chi Tiết Doanh Thu Từng Máy</h3>
+                        <div class="table-scroll">
+                            <table class="data-table" id="machineTable">
+                                <thead id="machineTableHead"></thead>
+                                <tbody id="machineTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="glass-card chart-card chart-narrow">
+                        <h3 class="card-title" data-i18n="top5_title">Top 5 Ngày Doanh Số Cao Nhất</h3>
+                        <div class="top5-list" id="top5List"></div>
                     </div>
                 </div>
             </section>

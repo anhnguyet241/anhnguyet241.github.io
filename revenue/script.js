@@ -47,10 +47,11 @@ function setupNavigation() {
             if (target) target.style.display = 'block';
 
             // Update title
-            const titleMap = { overview: 'title_overview', compare: 'title_compare', trends: 'title_trends' };
+            const titleMap = { overview: 'title_overview', report: 'title_report', compare: 'title_compare', trends: 'title_trends' };
             $('pageTitle').textContent = t(titleMap[sec] || 'title_overview');
 
             // Render section-specific content
+            if (sec === 'report') renderReport();
             if (sec === 'compare') renderCompare();
             if (sec === 'trends') renderTrends();
 
@@ -60,7 +61,7 @@ function setupNavigation() {
 
     window.addEventListener('popstate', () => {
         const hash = window.location.hash.substring(1);
-        const validSections = ['overview', 'compare', 'trends'];
+        const validSections = ['overview', 'report', 'compare', 'trends'];
         if (validSections.includes(hash)) {
             const targetNav = document.querySelector(`.nav-item[data-section="${hash}"]`);
             if (targetNav) targetNav.click();
@@ -92,6 +93,7 @@ function setupNavigation() {
         const activeNav = document.querySelector('.nav-item.active[data-section]');
         if (activeNav) {
             const sec = activeNav.dataset.section;
+            if (sec === 'report') renderReport();
             if (sec === 'compare') renderCompare();
             if (sec === 'trends') renderTrends();
         }
@@ -312,6 +314,68 @@ function renderOverview() {
     renderRevenueCalendar(year, month);
 }
 
+// ══════════════════════════════════════
+// REPORT PAGE (Boss View)
+// ══════════════════════════════════════
+function renderReport() {
+    const data = allMonthsData[currentMonth];
+    if (!data) {
+        $('rptTotalSales').textContent = '—';
+        $('rptTotalTransfer').textContent = '—';
+        $('rptAvgDaily').textContent = '—';
+        $('rptPeakDays').textContent = '—';
+        return;
+    }
+    const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
+    const { dailySales, dailyTransfers, dateHeaders } = data;
+    const numDays = dateHeaders ? dateHeaders.length : 0;
+
+    // Parse month/year
+    const [yearStr, monthStr] = (currentMonth || '2026-01').split('-');
+    const year = parseInt(yearStr);
+    const month = parseInt(monthStr);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    // Calculate totals
+    let totalSales = 0, totalTransfer = 0;
+    const salesArr = [], transferArr = [];
+    for (let d = 0; d < numDays; d++) {
+        let ds = 0, dt = 0;
+        activeMachines.forEach(m => {
+            ds += (dailySales?.[m]?.[d] || 0);
+            dt += (dailyTransfers?.[m]?.[d] || 0);
+        });
+        // Also add manual data
+        activeMachines.forEach(m => {
+            const dayNum = d + 1;
+            const manual = getManualDayData(m, currentMonth, dayNum);
+            if (manual) {
+                ds += (manual.card || 0) + (manual.pc || 0);
+                dt += (manual.transfer || 0);
+            }
+        });
+        totalSales += ds;
+        totalTransfer += dt;
+        salesArr.push(ds);
+        transferArr.push(dt);
+    }
+
+    const avgDaily = numDays > 0 ? totalSales / numDays : 0;
+    let peakCount = 0;
+    salesArr.forEach(s => { if (s > 10000) peakCount++; });
+
+    // Update KPI cards
+    $('rptTotalSales').textContent = fmt(totalSales);
+    $('rptTotalTransfer').textContent = fmt(totalTransfer);
+    $('rptAvgDaily').textContent = fmt(avgDaily);
+    $('rptPeakDays').textContent = peakCount + ' / ' + numDays;
+
+    // Render charts & tables
+    renderDailyChart(dateHeaders, salesArr, transferArr);
+    renderThresholdChart(salesArr);
+    renderMachineTable(data, activeMachines);
+    renderTop5(dateHeaders, salesArr);
+}
 function renderDailyChart(dates, sales, transfers) {
     if (dailyChartInst) dailyChartInst.destroy();
     const labels = (dates || []).map(convertDateHeader);
@@ -859,6 +923,7 @@ function reRenderAll() {
     const activeNav = document.querySelector('.nav-item.active[data-section]');
     if (activeNav) {
         const sec = activeNav.dataset.section;
+        if (sec === 'report') renderReport();
         if (sec === 'compare') renderCompare();
         if (sec === 'trends') renderTrends();
     }
