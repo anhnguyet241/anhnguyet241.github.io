@@ -110,6 +110,10 @@ const TRANSLATIONS = {
         rev_save_success: '✅ 已保存！',
         rev_select_machine: '请选择单台设备后可编辑日历',
         rev_weekdays: ['一', '二', '三', '四', '五', '六', '日'],
+        rev_month_summary: '月度汇总',
+        rev_click_day: '选择查看',
+        rev_no_day_selected: '点击日历中的某天',
+        rev_no_data_day: '暂无数据',
 
         // Misc
         updated_at: '更新于：',
@@ -225,6 +229,10 @@ const TRANSLATIONS = {
         rev_save_success: '✅ Đã lưu!',
         rev_select_machine: 'Vui lòng chọn 1 máy cụ thể để nhập doanh số',
         rev_weekdays: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+        rev_month_summary: 'Tổng Kết Tháng',
+        rev_click_day: 'Chọn ngày để xem',
+        rev_no_day_selected: 'Bấm vào 1 ngày trên lịch',
+        rev_no_data_day: 'Chưa có dữ liệu',
 
         // Misc
         updated_at: 'Cập nhật: ',

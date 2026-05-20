@@ -174,46 +174,53 @@
 
             <!-- ═══ SECTION: OVERVIEW ═══ -->
             <section class="section-block" id="section-overview">
-                <!-- KPI Cards -->
-                <div class="stats-row">
-                    <div class="stat-card glass-card card-sales">
-                        <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
-                        <div class="stat-info">
-                            <span class="stat-label" data-i18n="kpi_total_sales">月总营业额</span>
-                            <span class="stat-value" id="kpiTotalSales">0</span>
-                        </div>
-                    </div>
-                    <div class="stat-card glass-card card-transfer">
-                        <div class="stat-icon"><i class="fas fa-money-bill-transfer"></i></div>
-                        <div class="stat-info">
-                            <span class="stat-label" data-i18n="kpi_total_transfer">月总转账额</span>
-                            <span class="stat-value" id="kpiTotalTransfer">0</span>
-                        </div>
-                    </div>
-                    <div class="stat-card glass-card card-avg">
-                        <div class="stat-icon"><i class="fas fa-calculator"></i></div>
-                        <div class="stat-info">
-                            <span class="stat-label" data-i18n="kpi_avg_daily">日均营业额</span>
-                            <span class="stat-value" id="kpiAvgDaily">0</span>
-                        </div>
-                    </div>
-                    <div class="stat-card glass-card card-peak">
-                        <div class="stat-icon"><i class="fas fa-fire"></i></div>
-                        <div class="stat-info">
-                            <span class="stat-label" data-i18n="kpi_peak_days">高峰天数</span>
-                            <span class="stat-value" id="kpiPeakDays">0</span>
-                            <span class="stat-sub" data-i18n="kpi_peak_days_desc">营业额 > 10,000</span>
-                        </div>
-                    </div>
-                </div>
+                <div class="rev-layout">
+                    <!-- ── LEFT PANEL ── -->
+                    <div class="rev-left">
+                        <!-- Mini Calendar -->
+                        <div class="rev-mini-cal" id="revMiniCal"></div>
 
-                <!-- Revenue Calendar Widget -->
-                <div class="glass-card chart-card" style="grid-column: 1 / -1;">
-                    <div class="rev-cal-header">
-                        <h3 class="card-title" data-i18n="rev_cal_title">营收日历</h3>
-                        <div class="rev-cal-info" id="revCalInfo"></div>
+                        <!-- Month Summary -->
+                        <div class="rev-summary">
+                            <div class="rev-summary-title" data-i18n="rev_month_summary">Tổng Kết Tháng</div>
+                            <div class="rev-summary-row">
+                                <span class="rev-summary-label"><i class="fas fa-chart-line" style="color:#7c3aed"></i> <span data-i18n="kpi_total_sales">Doanh Số</span></span>
+                                <span class="rev-summary-val" id="kpiTotalSales">0</span>
+                            </div>
+                            <div class="rev-summary-row">
+                                <span class="rev-summary-label"><i class="fas fa-money-bill-transfer" style="color:#f59e0b"></i> <span data-i18n="kpi_total_transfer">Tiền Chuyển</span></span>
+                                <span class="rev-summary-val" id="kpiTotalTransfer">0</span>
+                            </div>
+                            <div class="rev-summary-row">
+                                <span class="rev-summary-label"><i class="fas fa-calculator" style="color:#10b981"></i> <span data-i18n="kpi_avg_daily">TB/Ngày</span></span>
+                                <span class="rev-summary-val" id="kpiAvgDaily">0</span>
+                            </div>
+                            <div class="rev-summary-row">
+                                <span class="rev-summary-label"><i class="fas fa-fire" style="color:#ef4444"></i> <span data-i18n="kpi_peak_days">Cao Điểm</span></span>
+                                <span class="rev-summary-val" id="kpiPeakDays">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Selected Day Detail -->
+                        <div class="rev-day-detail" id="revDayDetail">
+                            <div class="rev-detail-title" id="revDetailTitle">
+                                <i class="fas fa-calendar-day"></i>
+                                <span data-i18n="rev_click_day">Chọn ngày để xem</span>
+                            </div>
+                            <div class="rev-detail-body" id="revDetailBody">
+                                <div class="rev-detail-empty" data-i18n="rev_no_day_selected">Bấm vào 1 ngày trên lịch</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="rev-calendar" id="revCalendar"></div>
+
+                    <!-- ── RIGHT PANEL: Big Calendar ── -->
+                    <div class="rev-right">
+                        <div class="rev-cal-header">
+                            <h3 class="card-title" data-i18n="rev_cal_title">Lịch Doanh Số</h3>
+                            <div class="rev-cal-info" id="revCalInfo"></div>
+                        </div>
+                        <div class="rev-calendar" id="revCalendar"></div>
+                    </div>
                 </div>
             </section>
 

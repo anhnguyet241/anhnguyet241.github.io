@@ -868,6 +868,138 @@ function reRenderAll() {
 // REVENUE CALENDAR
 // ══════════════════════════════════════
 
+let _selectedDay = null;
+
+function renderMiniCalendar(year, month) {
+    const el = $('revMiniCal');
+    if (!el) return;
+    const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstDay = new Date(year, month - 1, 1).getDay();
+    const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+    const today = new Date();
+    const weekdays = t('rev_weekdays') || ['T2','T3','T4','T5','T6','T7','CN'];
+    const monthNames = currentLang === 'zh'
+        ? ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
+        : ['Th.1','Th.2','Th.3','Th.4','Th.5','Th.6','Th.7','Th.8','Th.9','Th.10','Th.11','Th.12'];
+
+    let html = `<div class="rev-mini-cal-header">
+        <div class="rev-mini-cal-title">${monthNames[month-1]} ${year}</div>
+    </div>
+    <div class="rev-mini-cal-grid">`;
+
+    weekdays.forEach(wd => { html += `<div class="rev-mini-cal-wd">${wd}</div>`; });
+    for (let i = 0; i < startOffset; i++) html += `<div class="rev-mini-cal-d empty"></div>`;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        let cls = 'rev-mini-cal-d';
+        // Check has data
+        let hasD = false;
+        activeMachines.forEach(m => {
+            if (getManualDayData(m, currentMonth, d)) hasD = true;
+        });
+        if (!hasD && allMonthsData[currentMonth]?.dateHeaders) {
+            const idx = d - 1;
+            if (idx < allMonthsData[currentMonth].dateHeaders.length) {
+                activeMachines.forEach(m => {
+                    if ((allMonthsData[currentMonth].dailySales?.[m]?.[idx] || 0) > 0) hasD = true;
+                });
+            }
+        }
+        if (hasD) cls += ' has-data';
+        if (year === today.getFullYear() && month === today.getMonth() + 1 && d === today.getDate()) cls += ' today';
+        if (_selectedDay === d) cls += ' selected';
+        html += `<div class="${cls}" data-day="${d}">${d}</div>`;
+    }
+    html += `</div>`;
+    el.innerHTML = html;
+
+    // Click on mini cal day
+    el.querySelectorAll('.rev-mini-cal-d:not(.empty)').forEach(cel => {
+        cel.addEventListener('click', () => {
+            const day = parseInt(cel.dataset.day);
+            selectDay(day, year, month);
+        });
+    });
+}
+
+function selectDay(day, year, month) {
+    _selectedDay = day;
+    // Highlight on mini cal
+    document.querySelectorAll('.rev-mini-cal-d.selected').forEach(el => el.classList.remove('selected'));
+    document.querySelector(`.rev-mini-cal-d[data-day="${day}"]`)?.classList.add('selected');
+    // Highlight on big cal
+    document.querySelectorAll('.rev-cal-day.selected').forEach(el => el.classList.remove('selected'));
+    document.querySelector(`.rev-cal-day[data-day="${day}"]`)?.classList.add('selected');
+    // Update detail panel
+    updateDayDetail(day, year, month);
+}
+
+function updateDayDetail(day, year, month) {
+    const title = $('revDetailTitle');
+    const body = $('revDetailBody');
+    if (!title || !body) return;
+
+    title.innerHTML = `<i class="fas fa-calendar-day"></i> ${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}/${year}`;
+
+    const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
+    let totalCard = 0, totalPc = 0, totalTransfer = 0, excelSales = 0, excelTransfer = 0;
+
+    const excelData = allMonthsData[currentMonth];
+    if (excelData?.dateHeaders) {
+        excelData.dateHeaders.forEach((hdr, idx) => {
+            const match = String(hdr).match(/(\d+)月(\d+)日/);
+            const hd = match ? parseInt(match[2]) : (idx + 1);
+            if (hd === day) {
+                activeMachines.forEach(m => {
+                    excelSales += (excelData.dailySales?.[m]?.[idx] || 0);
+                    excelTransfer += (excelData.dailyTransfers?.[m]?.[idx] || 0);
+                });
+            }
+        });
+    }
+    activeMachines.forEach(m => {
+        const manual = getManualDayData(m, currentMonth, day);
+        if (manual) {
+            totalCard += (manual.card || 0);
+            totalPc += (manual.pc || 0);
+            totalTransfer += (manual.transfer || 0);
+        }
+    });
+
+    const sales = (totalCard + totalPc) || excelSales;
+    const transfer = totalTransfer || excelTransfer;
+
+    if (sales === 0 && transfer === 0) {
+        body.innerHTML = `<div class="rev-detail-empty">${t('rev_no_data_day')}</div>`;
+        return;
+    }
+
+    body.innerHTML = `
+        ${totalCard > 0 || totalPc > 0 ? `
+        <div class="rev-detail-row">
+            <span class="rev-detail-row-label"><i class="fas fa-credit-card" style="color:#2563eb"></i> ${t('rev_card_sales')}</span>
+            <span class="rev-detail-row-val">${fmt(totalCard)}</span>
+        </div>
+        <div class="rev-detail-row">
+            <span class="rev-detail-row-label"><i class="fas fa-desktop" style="color:#7c3aed"></i> ${t('rev_pc_sales')}</span>
+            <span class="rev-detail-row-val">${fmt(totalPc)}</span>
+        </div>` : `
+        <div class="rev-detail-row">
+            <span class="rev-detail-row-label"><i class="fas fa-chart-line" style="color:#7c3aed"></i> ${t('kpi_total_sales')}</span>
+            <span class="rev-detail-row-val">${fmt(excelSales)}</span>
+        </div>`}
+        <div class="rev-detail-row">
+            <span class="rev-detail-row-label"><i class="fas fa-money-bill-transfer" style="color:#d97706"></i> ${t('rev_transfer')}</span>
+            <span class="rev-detail-row-val">${fmt(transfer)}</span>
+        </div>
+        <div class="rev-detail-total">
+            <span class="rev-detail-total-label">${t('rev_total')}</span>
+            <span class="rev-detail-total-val">${fmt(sales)}</span>
+        </div>
+    `;
+}
+
 function renderRevenueCalendar(year, month) {
     const cal = $('revCalendar');
     if (!cal) return;
@@ -877,9 +1009,10 @@ function renderRevenueCalendar(year, month) {
     const isAllMachines = currentMachine === '__all__';
     const activeMachines = isAllMachines ? MACHINE_NAMES : [currentMachine];
     const info = $('revCalInfo');
-    if (info) {
-        info.textContent = isAllMachines ? t('rev_select_machine') : currentMachine;
-    }
+    if (info) info.textContent = isAllMachines ? t('rev_select_machine') : currentMachine;
+
+    // Render mini calendar
+    renderMiniCalendar(year, month);
 
     // Weekday headers
     const weekdays = t('rev_weekdays') || ['T2','T3','T4','T5','T6','T7','CN'];
@@ -890,38 +1023,36 @@ function renderRevenueCalendar(year, month) {
         cal.appendChild(el);
     });
 
-    const firstDay = new Date(year, month - 1, 1).getDay(); // 0=Sun
-    const startOffset = firstDay === 0 ? 6 : firstDay - 1; // Mon=0
+    const firstDay = new Date(year, month - 1, 1).getDay();
+    const startOffset = firstDay === 0 ? 6 : firstDay - 1;
     const daysInMonth = new Date(year, month, 0).getDate();
     const today = new Date();
 
-    // Empty cells before day 1
     for (let i = 0; i < startOffset; i++) {
         const empty = document.createElement('div');
         empty.className = 'rev-cal-day empty';
+        const numEl = document.createElement('div');
+        numEl.className = 'rev-cal-day-num';
+        numEl.textContent = '.';
+        empty.appendChild(numEl);
         cal.appendChild(empty);
     }
 
-    // Day cells
     for (let d = 1; d <= daysInMonth; d++) {
         const cell = document.createElement('div');
         cell.className = 'rev-cal-day';
-        if (isAllMachines) cell.classList.add('readonly');
+        cell.setAttribute('data-day', d);
 
-        // Check today
         if (year === today.getFullYear() && month === today.getMonth() + 1 && d === today.getDate()) {
             cell.classList.add('today');
         }
+        if (_selectedDay === d) cell.classList.add('selected');
 
-        // Get data for this day — manual + Excel
-        let totalCard = 0, totalPc = 0, totalTransfer = 0;
-        let excelSales = 0, excelTransfer = 0;
-
-        // Excel data (old imported sheets)
+        // Get data
+        let totalCard = 0, totalPc = 0, totalTransfer = 0, excelSales = 0, excelTransfer = 0;
         const excelData = allMonthsData[currentMonth];
-        if (excelData && excelData.dateHeaders) {
+        if (excelData?.dateHeaders) {
             excelData.dateHeaders.forEach((hdr, idx) => {
-                // Parse day from header like "4月15日" or "1月5日"
                 const match = String(hdr).match(/(\d+)月(\d+)日/);
                 const headerDay = match ? parseInt(match[2]) : (idx + 1);
                 if (headerDay === d) {
@@ -932,8 +1063,6 @@ function renderRevenueCalendar(year, month) {
                 }
             });
         }
-
-        // Manual data (hand-entered)
         activeMachines.forEach(m => {
             const manual = getManualDayData(m, currentMonth, d);
             if (manual) {
@@ -943,46 +1072,32 @@ function renderRevenueCalendar(year, month) {
             }
         });
 
-        // If no manual data, treat Excel sales as total (unsplit)
         const dayTotal = (totalCard + totalPc) || excelSales;
-        const dayTransfer = totalTransfer || excelTransfer;
-        const hasData = dayTotal > 0 || dayTransfer > 0;
+        const hasData = dayTotal > 0;
         if (hasData) cell.classList.add('has-data');
 
-        // Day number
+        // Day number (large)
         const numEl = document.createElement('div');
         numEl.className = 'rev-cal-day-num';
-        numEl.textContent = d;
+        numEl.textContent = String(d).padStart(2, '0');
         cell.appendChild(numEl);
 
+        // Revenue pill (small)
         if (hasData) {
-            const totalEl = document.createElement('div');
-            totalEl.className = 'rev-cal-day-total';
-            totalEl.textContent = fmt(dayTotal);
-            cell.appendChild(totalEl);
-
-            const detailEl = document.createElement('div');
-            detailEl.className = 'rev-cal-day-details';
-            if (totalCard > 0 || totalPc > 0) {
-                // Manual data with split
-                detailEl.innerHTML = `<span class="detail-card">💳${fmt(totalCard)}</span> <span class="detail-pc">🖥${fmt(totalPc)}</span>`;
-            }
-            if (dayTransfer > 0) {
-                detailEl.innerHTML += ` <span class="detail-transfer">💸${fmt(dayTransfer)}</span>`;
-            }
-            cell.appendChild(detailEl);
+            const pill = document.createElement('div');
+            pill.className = 'rev-cal-day-total';
+            pill.textContent = fmt(dayTotal);
+            cell.appendChild(pill);
         }
 
-        // Click handler
+        // Click → select day + open popup if editable
         const dayNum = d;
-        if (isAllMachines) {
-            cell.addEventListener('click', () => {
-                alert(t('rev_select_machine'));
-                $('machineSelect')?.focus();
-            });
-        } else {
-            cell.addEventListener('click', () => openRevDayPopup(cell, dayNum, year, month));
-        }
+        cell.addEventListener('click', () => {
+            selectDay(dayNum, year, month);
+            if (!isAllMachines) {
+                openRevDayPopup(cell, dayNum, year, month);
+            }
+        });
 
         cal.appendChild(cell);
     }
