@@ -66,7 +66,7 @@ function setupNavigation() {
             const targetNav = document.querySelector(`.nav-item[data-section="${hash}"]`);
             if (targetNav) targetNav.click();
         } else if (!hash) {
-            const defaultNav = document.querySelector(`.nav-item[data-section="overview"]`);
+            const defaultNav = document.querySelector(`.nav-item[data-section="report"]`);
             if (defaultNav) defaultNav.click();
         }
     });
