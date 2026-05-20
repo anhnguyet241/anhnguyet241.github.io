@@ -155,10 +155,13 @@ function populateMonthSelects() {
     const allMonthSet = new Set(availableMonths);
     Object.keys(manualRevenueData).forEach(docId => {
         const parts = docId.split('_');
-        // docId format: 微信001_2026-05
-        const monthKey = parts.slice(1).join('_'); // "2026-05"
+        const monthKey = parts.slice(1).join('_');
         if (monthKey && monthKey.match(/^\d{4}-\d{2}$/)) allMonthSet.add(monthKey);
     });
+    // Always include current month
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    allMonthSet.add(currentMonthKey);
     const mergedMonths = [...allMonthSet].sort();
 
     const selects = [$('monthSelect'), $('compareMonthA'), $('compareMonthB')];
@@ -971,8 +974,13 @@ function renderRevenueCalendar(year, month) {
         }
 
         // Click handler
-        if (!isAllMachines) {
-            const dayNum = d;
+        const dayNum = d;
+        if (isAllMachines) {
+            cell.addEventListener('click', () => {
+                alert(t('rev_select_machine'));
+                $('machineSelect')?.focus();
+            });
+        } else {
             cell.addEventListener('click', () => openRevDayPopup(cell, dayNum, year, month));
         }
 
