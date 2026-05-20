@@ -1105,8 +1105,7 @@ function renderRevenueCalendar(year, month) {
 
         // Click → select day + open popup if specific machine
         const dayNum = d;
-        cell.addEventListener('click', (e) => {
-            console.log('[cell click]', { day: dayNum, machine: currentMachine, isAll: isAllMachines, target: e.target.className });
+        cell.addEventListener('click', () => {
             selectDay(dayNum, year, month);
             if (!isAllMachines) {
                 openRevDayPopup(cell, dayNum, year, month);
@@ -1123,7 +1122,6 @@ function closeRevPopup() {
 }
 
 function openRevDayPopup(cell, day, year, month) {
-    console.log('[openRevDayPopup]', { day, year, month, machine: currentMachine, role: window.currentUserRole });
     closeRevPopup();
 
     const machineId = currentMachine;
@@ -1139,7 +1137,7 @@ function openRevDayPopup(cell, day, year, month) {
     popup.className = 'rev-cal-popup';
     popup.innerHTML = `
         <div class="rev-cal-popup-title">
-            <i class="fas fa-edit"></i> ${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}
+            <i class="fas fa-edit"></i> ${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')} — ${machineId}
         </div>
         <div class="rev-cal-popup-group">
             <div class="rev-cal-popup-label"><i class="fas fa-credit-card" style="color:#3b82f6"></i> ${t('rev_card_sales')}</div>
@@ -1163,20 +1161,23 @@ function openRevDayPopup(cell, day, year, month) {
         </div>
     `;
 
-    const calEl = $('revCalendar');
-    calEl.style.position = 'relative';
-    calEl.appendChild(popup);
+    // Append to body with fixed positioning
+    document.body.appendChild(popup);
+    _revPopupEl = popup;
 
-    // Position popup near cell
+    // Position near cell (viewport-based)
     const cellRect = cell.getBoundingClientRect();
-    const calRect = calEl.getBoundingClientRect();
-    let left = cellRect.left - calRect.left + cellRect.width / 2 - 120;
-    let top = cellRect.bottom - calRect.top + 8;
-    if (left < 0) left = 4;
-    if (left + 240 > calRect.width) left = calRect.width - 244;
+    let left = cellRect.left + cellRect.width / 2 - 125;
+    let top = cellRect.bottom + 8;
+
+    // Keep within viewport
+    if (left < 10) left = 10;
+    if (left + 250 > window.innerWidth) left = window.innerWidth - 260;
+    if (top + 350 > window.innerHeight) top = cellRect.top - 350;
+
+    popup.style.position = 'fixed';
     popup.style.left = left + 'px';
     popup.style.top = top + 'px';
-    _revPopupEl = popup;
 
     // Auto-update total
     const updateTotal = () => {
@@ -1208,7 +1209,7 @@ function openRevDayPopup(cell, day, year, month) {
     };
     popup.querySelector('#revSaveBtn').addEventListener('click', doSave);
 
-    // Click outside
+    // Click outside to close
     setTimeout(() => {
         const handler = e => {
             if (_revPopupEl && !_revPopupEl.contains(e.target) && !cell.contains(e.target)) {
@@ -1217,7 +1218,7 @@ function openRevDayPopup(cell, day, year, month) {
             }
         };
         document.addEventListener('click', handler);
-    }, 100);
+    }, 200);
 }
 
 async function saveRevDayData(day, card, pc, transfer, cell) {
