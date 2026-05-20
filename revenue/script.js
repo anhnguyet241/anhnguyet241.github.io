@@ -1116,13 +1116,22 @@ function renderRevenueCalendar(year, month) {
     }
 }
 
+let _revPopupId = 0;
+let _revOutsideHandler = null;
+
 function closeRevPopup() {
     if (_revPopupEl) { _revPopupEl.remove(); _revPopupEl = null; }
     document.querySelectorAll('.rev-cal-day.editing').forEach(el => el.classList.remove('editing'));
+    if (_revOutsideHandler) {
+        document.removeEventListener('mousedown', _revOutsideHandler, true);
+        _revOutsideHandler = null;
+    }
 }
 
 function openRevDayPopup(cell, day, year, month) {
     closeRevPopup();
+    _revPopupId++;
+    const thisPopupId = _revPopupId;
 
     const machineId = currentMachine;
     const monthKey = currentMonth;
@@ -1161,20 +1170,16 @@ function openRevDayPopup(cell, day, year, month) {
         </div>
     `;
 
-    // Append to body with fixed positioning
     document.body.appendChild(popup);
     _revPopupEl = popup;
 
-    // Position near cell (viewport-based)
+    // Position near cell
     const cellRect = cell.getBoundingClientRect();
     let left = cellRect.left + cellRect.width / 2 - 125;
     let top = cellRect.bottom + 8;
-
-    // Keep within viewport
     if (left < 10) left = 10;
     if (left + 250 > window.innerWidth) left = window.innerWidth - 260;
     if (top + 350 > window.innerHeight) top = cellRect.top - 350;
-
     popup.style.position = 'fixed';
     popup.style.left = left + 'px';
     popup.style.top = top + 'px';
@@ -1194,13 +1199,10 @@ function openRevDayPopup(cell, day, year, month) {
         });
     });
 
-    // Focus first input
     setTimeout(() => { const i = $('revInputCard'); if (i) { i.focus(); i.select(); } }, 60);
 
-    // Cancel
     popup.querySelector('#revCancelBtn').addEventListener('click', () => closeRevPopup());
 
-    // Save
     const doSave = () => {
         const card = parseInt($('revInputCard').value) || 0;
         const pc = parseInt($('revInputPc').value) || 0;
@@ -1209,16 +1211,19 @@ function openRevDayPopup(cell, day, year, month) {
     };
     popup.querySelector('#revSaveBtn').addEventListener('click', doSave);
 
-    // Click outside to close
+    // Click outside — use mousedown + popup ID to prevent stale handlers
+    _revOutsideHandler = (e) => {
+        if (thisPopupId !== _revPopupId) return; // stale handler
+        if (_revPopupEl && !_revPopupEl.contains(e.target) && !cell.contains(e.target)) {
+            closeRevPopup();
+        }
+    };
+    // Delay registering to avoid catching the current click
     setTimeout(() => {
-        const handler = e => {
-            if (_revPopupEl && !_revPopupEl.contains(e.target) && !cell.contains(e.target)) {
-                closeRevPopup();
-                document.removeEventListener('click', handler);
-            }
-        };
-        document.addEventListener('click', handler);
-    }, 200);
+        if (thisPopupId === _revPopupId) {
+            document.addEventListener('mousedown', _revOutsideHandler, true);
+        }
+    }, 300);
 }
 
 async function saveRevDayData(day, card, pc, transfer, cell) {
