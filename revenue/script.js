@@ -318,47 +318,68 @@ function renderOverview() {
 // REPORT PAGE (Boss View)
 // ══════════════════════════════════════
 function renderReport() {
-    const data = allMonthsData[currentMonth];
-    if (!data) {
-        $('rptTotalSales').textContent = '—';
-        $('rptTotalTransfer').textContent = '—';
-        $('rptAvgDaily').textContent = '—';
-        $('rptPeakDays').textContent = '—';
-        return;
-    }
+    let data = allMonthsData[currentMonth];
     const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
-    const { dailySales, dailyTransfers, dateHeaders } = data;
-    const numDays = dateHeaders ? dateHeaders.length : 0;
-
+    
     // Parse month/year
     const [yearStr, monthStr] = (currentMonth || '2026-01').split('-');
     const year = parseInt(yearStr);
     const month = parseInt(monthStr);
     const daysInMonth = new Date(year, month, 0).getDate();
 
-    // Calculate totals
+    // Default headers if no data
+    let dateHeaders = data?.dateHeaders || Array.from({length: daysInMonth}, (_, i) => `${month}月${i+1}日`);
+    let numDays = dateHeaders.length;
+
+    // We will build a synthetic data object if there's missing stuff
+    let synData = {
+        dateHeaders,
+        dailySales: {},
+        dailyTransfers: {},
+        weeklySales: {},
+        weeklyTransfers: {},
+        weekHeaders: data?.weekHeaders || ['第1周', '第2周', '第3周', '第4周', '第5周']
+    };
+
     let totalSales = 0, totalTransfer = 0;
-    const salesArr = [], transferArr = [];
-    for (let d = 0; d < numDays; d++) {
-        let ds = 0, dt = 0;
-        activeMachines.forEach(m => {
-            ds += (dailySales?.[m]?.[d] || 0);
-            dt += (dailyTransfers?.[m]?.[d] || 0);
-        });
-        // Also add manual data
-        activeMachines.forEach(m => {
-            const dayNum = d + 1;
-            const manual = getManualDayData(m, currentMonth, dayNum);
+    const salesArr = new Array(numDays).fill(0);
+    const transferArr = new Array(numDays).fill(0);
+    const perMachinePeaks = {};
+    activeMachines.forEach(m => perMachinePeaks[m] = 0);
+
+    MACHINE_NAMES.forEach(m => {
+        synData.dailySales[m] = new Array(numDays).fill(0);
+        synData.dailyTransfers[m] = new Array(numDays).fill(0);
+        synData.weeklySales[m] = new Array(5).fill(0);
+        synData.weeklyTransfers[m] = new Array(5).fill(0);
+
+        for (let d = 0; d < numDays; d++) {
+            let ds = data?.dailySales?.[m]?.[d] || 0;
+            let dt = data?.dailyTransfers?.[m]?.[d] || 0;
+            
+            const manual = getManualDayData(m, currentMonth, d + 1);
             if (manual) {
                 ds += (manual.card || 0) + (manual.pc || 0);
                 dt += (manual.transfer || 0);
             }
-        });
-        totalSales += ds;
-        totalTransfer += dt;
-        salesArr.push(ds);
-        transferArr.push(dt);
-    }
+
+            synData.dailySales[m][d] = ds;
+            synData.dailyTransfers[m][d] = dt;
+
+            // Calculate week index (approximate: 7 days per week)
+            const weekIdx = Math.min(4, Math.floor(d / 7));
+            synData.weeklySales[m][weekIdx] += ds;
+            synData.weeklyTransfers[m][weekIdx] += dt;
+
+            if (activeMachines.includes(m)) {
+                if (ds > 10000) perMachinePeaks[m]++;
+                salesArr[d] += ds;
+                transferArr[d] += dt;
+                totalSales += ds;
+                totalTransfer += dt;
+            }
+        }
+    });
 
     const avgDaily = numDays > 0 ? totalSales / numDays : 0;
     let peakCount = 0;
@@ -372,9 +393,9 @@ function renderReport() {
 
     // Render charts & tables
     renderDailyChart(dateHeaders, salesArr, transferArr);
-    renderThresholdChart(salesArr);
-    renderMachineTable(data, activeMachines);
-    renderTop5(dateHeaders, salesArr);
+    renderThresholdChart(perMachinePeaks, numDays, activeMachines);
+    renderMachineTable(synData, activeMachines);
+    renderTop5(dateHeaders, salesArr, totalSales);
 }
 function renderDailyChart(dates, sales, transfers) {
     if (dailyChartInst) dailyChartInst.destroy();
