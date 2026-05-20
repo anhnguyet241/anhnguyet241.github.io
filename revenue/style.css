@@ -465,7 +465,7 @@ body {
 
 /* Day Cell — NO borders, clean */
 .rev-cal-day {
-    min-height: 85px;
+    min-height: 100px;
     padding: 8px 6px;
     cursor: pointer;
     display: flex; flex-direction: column;
@@ -509,24 +509,20 @@ body {
 
 /* Revenue pill — small, under the number */
 .rev-cal-day-total {
-    font-size: 10px; font-weight: 700;
-    color: #7c3aed;
-    background: #f5f3ff;
-    padding: 2px 8px; border-radius: 8px;
-    margin-top: 2px;
-}
-.rev-cal-day.has-data .rev-cal-day-total {
-    background: #ede9fe;
+    display: none; /* now using detail pills instead */
 }
 
-/* Transfer indicator — tiny line */
+/* Detail pills — stacked vertically */
 .rev-cal-day-details {
-    margin-top: 3px;
-    display: flex; gap: 3px; align-items: center;
+    margin-top: auto;
+    display: flex; flex-direction: column; gap: 2px;
+    width: 100%;
 }
 .rev-cal-day-details span {
-    font-size: 8px; font-weight: 600;
-    padding: 1px 5px; border-radius: 4px;
+    font-size: 9px; font-weight: 600;
+    padding: 2px 6px; border-radius: 6px;
+    display: block; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .rev-cal-day-details .detail-card {
     background: #dbeafe; color: #2563eb;

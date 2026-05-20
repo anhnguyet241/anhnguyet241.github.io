@@ -1073,7 +1073,8 @@ function renderRevenueCalendar(year, month) {
         });
 
         const dayTotal = (totalCard + totalPc) || excelSales;
-        const hasData = dayTotal > 0;
+        const dayTransfer = totalTransfer || excelTransfer;
+        const hasData = dayTotal > 0 || dayTransfer > 0;
         if (hasData) cell.classList.add('has-data');
 
         // Day number (large)
@@ -1082,12 +1083,19 @@ function renderRevenueCalendar(year, month) {
         numEl.textContent = String(d).padStart(2, '0');
         cell.appendChild(numEl);
 
-        // Revenue pill (small)
+        // Detail pills
         if (hasData) {
-            const pill = document.createElement('div');
-            pill.className = 'rev-cal-day-total';
-            pill.textContent = fmt(dayTotal);
-            cell.appendChild(pill);
+            const pills = document.createElement('div');
+            pills.className = 'rev-cal-day-details';
+            if (totalCard > 0 || totalPc > 0) {
+                pills.innerHTML = `<span class="detail-card">💳 ${fmt(totalCard)}</span><span class="detail-pc">🖥 ${fmt(totalPc)}</span>`;
+            } else if (excelSales > 0) {
+                pills.innerHTML = `<span class="detail-card">💰 ${fmt(excelSales)}</span>`;
+            }
+            if (dayTransfer > 0) {
+                pills.innerHTML += `<span class="detail-transfer">💸 ${fmt(dayTransfer)}</span>`;
+            }
+            cell.appendChild(pills);
         }
 
         // Click → select day + open popup if editable
