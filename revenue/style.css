@@ -465,7 +465,7 @@ body {
 
 /* Day Cell — NO borders, clean */
 .rev-cal-day {
-    min-height: 100px;
+    min-height: 110px;
     padding: 8px 6px;
     cursor: pointer;
     display: flex; flex-direction: column;
@@ -507,9 +507,12 @@ body {
 }
 .rev-cal-day.empty .rev-cal-day-num { color: transparent; }
 
-/* Revenue pill — small, under the number */
+/* Total revenue — bold number */
 .rev-cal-day-total {
-    display: none; /* now using detail pills instead */
+    font-size: 13px; font-weight: 800;
+    color: #5b21b6;
+    margin-top: auto;
+    text-align: center;
 }
 
 /* Detail pills — stacked vertically */

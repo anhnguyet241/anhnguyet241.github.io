@@ -1083,14 +1083,19 @@ function renderRevenueCalendar(year, month) {
         numEl.textContent = String(d).padStart(2, '0');
         cell.appendChild(numEl);
 
-        // Detail pills
+        // Detail pills — total + breakdown
         if (hasData) {
+            // Total revenue line
+            const totalEl = document.createElement('div');
+            totalEl.className = 'rev-cal-day-total';
+            totalEl.textContent = fmt(dayTotal);
+            cell.appendChild(totalEl);
+
+            // Breakdown pills
             const pills = document.createElement('div');
             pills.className = 'rev-cal-day-details';
             if (totalCard > 0 || totalPc > 0) {
                 pills.innerHTML = `<span class="detail-card">💳 ${fmt(totalCard)}</span><span class="detail-pc">🖥 ${fmt(totalPc)}</span>`;
-            } else if (excelSales > 0) {
-                pills.innerHTML = `<span class="detail-card">💰 ${fmt(excelSales)}</span>`;
             }
             if (dayTransfer > 0) {
                 pills.innerHTML += `<span class="detail-transfer">💸 ${fmt(dayTransfer)}</span>`;
@@ -1098,7 +1103,7 @@ function renderRevenueCalendar(year, month) {
             cell.appendChild(pills);
         }
 
-        // Click → select day + open popup if editable
+        // Click → select day + open popup if specific machine
         const dayNum = d;
         cell.addEventListener('click', () => {
             selectDay(dayNum, year, month);
