@@ -83,6 +83,14 @@ function setupNavigation() {
     $('monthSelect')?.addEventListener('change', e => {
         currentMonth = e.target.value;
         renderOverview();
+        
+        const activeNav = document.querySelector('.nav-item.active[data-section]');
+        if (activeNav) {
+            const sec = activeNav.dataset.section;
+            if (sec === 'report') renderReport();
+            if (sec === 'compare') renderCompare();
+            if (sec === 'trends') renderTrends();
+        }
     });
 
     // Machine select
