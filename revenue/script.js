@@ -1105,7 +1105,8 @@ function renderRevenueCalendar(year, month) {
 
         // Click → select day + open popup if specific machine
         const dayNum = d;
-        cell.addEventListener('click', () => {
+        cell.addEventListener('click', (e) => {
+            console.log('[cell click]', { day: dayNum, machine: currentMachine, isAll: isAllMachines, target: e.target.className });
             selectDay(dayNum, year, month);
             if (!isAllMachines) {
                 openRevDayPopup(cell, dayNum, year, month);
@@ -1122,7 +1123,7 @@ function closeRevPopup() {
 }
 
 function openRevDayPopup(cell, day, year, month) {
-    if (window.currentUserRole === 'viewer') return;
+    console.log('[openRevDayPopup]', { day, year, month, machine: currentMachine, role: window.currentUserRole });
     closeRevPopup();
 
     const machineId = currentMachine;
