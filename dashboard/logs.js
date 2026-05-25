@@ -97,7 +97,8 @@ function renderLogRow(data) {
             let dateStr = data.dateKey || 'undefined';
             const s = String(dateStr).trim();
             if (!isNaN(s) && Number(s) > 40000) {
-                const date = new Date(new Date(1899, 11, 30).getTime() + Number(s) * 86400000);
+                const u = new Date(Date.UTC(1899, 11, 30, 12, 0, 0) + Number(s) * 86400000);
+                const date = new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate());
                 dateStr = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
             } else if (s.match(/^(\d{1,2})月(\d{1,2})日?$/)) {
                 const m = s.match(/^(\d{1,2})月(\d{1,2})日?$/);

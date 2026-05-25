@@ -267,7 +267,10 @@ async function loadMonthData(monthKey) {
     }).sort((a, b) => {
         const parseDate = (headerKey) => {
             const s = String(headerKey).trim();
-            if (!isNaN(s) && Number(s) > 40000) return new Date(1899, 11, 30).getTime() + Number(s) * 86400000;
+            if (!isNaN(s) && Number(s) > 40000) {
+                const u = new Date(Date.UTC(1899, 11, 30, 12, 0, 0) + Number(s) * 86400000);
+                return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate()).getTime();
+            }
             const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
             if (cnMatch) return new Date(new Date().getFullYear(), parseInt(cnMatch[1]) - 1, parseInt(cnMatch[2])).getTime();
             return 0;
@@ -1069,10 +1072,9 @@ function formatDateLabel(val) {
         const day = cnMatch[2].padStart(2, '0');
         return `${day}/${month}`;
     }
-    // Trường hợp 2: Excel serial date (số > 40000)
     if (!isNaN(val) && Number(val) > 40000) {
-        const excelEpoch = new Date(1899, 11, 30);
-        const date = new Date(excelEpoch.getTime() + Number(val) * 86400000);
+        const u = new Date(Date.UTC(1899, 11, 30, 12, 0, 0) + Number(val) * 86400000);
+        const date = new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate());
         return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
     }
     return s;
@@ -1105,10 +1107,9 @@ let _detailCurrentItem = null;
 // Parse header key → {year, month, day} Date object
 function parseHeaderToDate(headerKey) {
     const s = String(headerKey).trim();
-    // Excel serial date
     if (!isNaN(s) && Number(s) > 40000) {
-        const excelEpoch = new Date(1899, 11, 30);
-        return new Date(excelEpoch.getTime() + Number(s) * 86400000);
+        const u = new Date(Date.UTC(1899, 11, 30, 12, 0, 0) + Number(s) * 86400000);
+        return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate());
     }
     // Chinese date: X月Y日
     const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
@@ -1352,9 +1353,9 @@ function getHeaderKeyForDate(year, month, day) {
     if (existing.length > 0) {
         const sample = String(existing[0]).trim();
         if (!isNaN(sample) && Number(sample) > 40000) {
-            const target = new Date(year, month - 1, day);
-            const epoch = new Date(1899, 11, 30);
-            return String(Math.round((target.getTime() - epoch.getTime()) / 86400000));
+            const target = Date.UTC(year, month - 1, day, 12, 0, 0);
+            const epoch = Date.UTC(1899, 11, 30, 12, 0, 0);
+            return String(Math.round((target - epoch) / 86400000));
         }
     }
     return `${month}月${day}日`;
@@ -1572,7 +1573,10 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
             dailyHeaders.sort((a, b) => {
                 const parseD = (hk) => {
                     const s = String(hk).trim();
-                    if (!isNaN(s) && Number(s) > 40000) return new Date(1899, 11, 30).getTime() + Number(s) * 86400000;
+                    if (!isNaN(s) && Number(s) > 40000) {
+                        const u = new Date(Date.UTC(1899, 11, 30, 12, 0, 0) + Number(s) * 86400000);
+                        return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate()).getTime();
+                    }
                     const m = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
                     if (m) return new Date(new Date().getFullYear(), parseInt(m[1]) - 1, parseInt(m[2])).getTime();
                     return 0;
