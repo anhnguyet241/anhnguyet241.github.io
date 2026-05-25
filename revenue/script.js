@@ -349,7 +349,7 @@ function renderReport() {
         weekHeaders: data?.weekHeaders || ['第1周', '第2周', '第3周', '第4周', '第5周']
     };
 
-    let totalSales = 0, totalTransfer = 0;
+    let totalSales = 0, totalTransfer = 0, totalCard = 0, totalPc = 0;
     const salesArr = new Array(numDays).fill(0);
     const transferArr = new Array(numDays).fill(0);
     const perMachinePeaks = {};
@@ -369,6 +369,10 @@ function renderReport() {
             if (manual) {
                 ds += (manual.card || 0) + (manual.pc || 0);
                 dt += (manual.transfer || 0);
+                if (activeMachines.includes(m)) {
+                    totalCard += (manual.card || 0);
+                    totalPc += (manual.pc || 0);
+                }
             }
 
             synData.dailySales[m][d] = ds;
@@ -398,6 +402,35 @@ function renderReport() {
     $('rptTotalTransfer').textContent = fmt(totalTransfer);
     $('rptAvgDaily').textContent = fmt(avgDaily);
     $('rptPeakDays').textContent = peakCount + ' / ' + numDays;
+    
+    // Update Card vs PC KPI cards
+    const cardPcRow = $('rptCardPcRow');
+    if (cardPcRow) {
+        const totalCardPc = totalCard + totalPc;
+        if (totalCardPc > 0) {
+            cardPcRow.style.display = 'grid'; // matches stats-row class layout
+            $('rptCardSales').textContent = fmt(totalCard);
+            $('rptPcSales').textContent = fmt(totalPc);
+            
+            const cardPct = fmtPct(totalCard / totalCardPc);
+            const pcPct = fmtPct(totalPc / totalCardPc);
+            
+            $('rptCardPct').textContent = t('rpt_pct_total', { pct: cardPct });
+            $('rptPcPct').textContent = t('rpt_pct_total', { pct: pcPct });
+            
+            // Ratio
+            if (totalPc > 0) {
+                const ratio = (totalCard / totalPc).toFixed(2);
+                $('rptCardPcRatio').textContent = ratio + ' : 1';
+                $('rptCardPcRatioSub').textContent = t('rpt_ratio_text', { ratio: ratio });
+            } else {
+                $('rptCardPcRatio').textContent = t('rpt_only_card');
+                $('rptCardPcRatioSub').textContent = t('rpt_no_pc');
+            }
+        } else {
+            cardPcRow.style.display = 'none';
+        }
+    }
 
     // Render charts & tables
     renderDailyChart(dateHeaders, salesArr, transferArr);
@@ -637,26 +670,29 @@ function renderCompare() {
     const monthA = $('compareMonthA')?.value;
     const monthB = $('compareMonthB')?.value;
     if (!monthA || !monthB) return;
-    const dataA = allMonthsData[monthA];
-    const dataB = allMonthsData[monthB];
-    if (!dataA || !dataB) return;
+    const dataA = allMonthsData[monthA] || null;
+    const dataB = allMonthsData[monthB] || null;
+    // Check if at least one source has data (Excel or manual)
+    const hasManualA = MACHINE_NAMES.some(m => getManualDayData(m, monthA, 1) !== null || getManualDayData(m, monthA, 15) !== null);
+    const hasManualB = MACHINE_NAMES.some(m => getManualDayData(m, monthB, 1) !== null || getManualDayData(m, monthB, 15) !== null);
+    if (!dataA && !hasManualA && !dataB && !hasManualB) return;
 
     // Determine limit days
-    const maxDaysA = dataA.dateHeaders ? dataA.dateHeaders.length : 0;
-    const maxDaysB = dataB.dateHeaders ? dataB.dateHeaders.length : 0;
+    const maxDaysA = dataA?.dateHeaders ? dataA.dateHeaders.length : 0;
+    const maxDaysB = dataB?.dateHeaders ? dataB.dateHeaders.length : 0;
     
     const daysInput = $('compareDaysInput');
-    const minAvailable = Math.min(maxDaysA, maxDaysB);
+    const minAvailable = Math.max(maxDaysA, maxDaysB) || 31;
     if (daysInput && !daysInput.value) {
-        daysInput.value = minAvailable || 1;
+        daysInput.value = minAvailable;
     }
     
     let limitDays = parseInt(daysInput?.value, 10);
     if (isNaN(limitDays) || limitDays < 1) limitDays = 31;
 
     // Compute totals
-    const totA = computeMonthTotals(dataA, null, limitDays);
-    const totB = computeMonthTotals(dataB, null, limitDays);
+    const totA = computeMonthTotals(dataA, null, limitDays, monthA);
+    const totB = computeMonthTotals(dataB, null, limitDays, monthB);
 
     // KPIs
     renderChangeKPI('compareSalesChange', totA.totalSales, totB.totalSales);
@@ -680,27 +716,55 @@ $('compareMonthB')?.addEventListener('change', () => {
 });
 $('compareDaysInput')?.addEventListener('input', renderCompare);
 
-function computeMonthTotals(data, machineFilter, limitDays = null) {
+function computeMonthTotals(data, machineFilter, limitDays = null, monthKey = null) {
     const activeMachines = machineFilter || (currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine]);
     let totalSales = 0, totalTransfer = 0;
-    const maxDays = data.dateHeaders ? data.dateHeaders.length : 0;
-    const numDays = limitDays !== null ? Math.min(limitDays, maxDays) : maxDays;
+    const maxDays = data?.dateHeaders ? data.dateHeaders.length : 0;
+    const numDays = limitDays !== null ? Math.min(limitDays, Math.max(maxDays, 31)) : (maxDays || 31);
     
-    for (let d = 0; d < numDays; d++) {
+    // Excel data
+    for (let d = 0; d < Math.min(numDays, maxDays); d++) {
         activeMachines.forEach(m => {
-            totalSales += (data.dailySales?.[m]?.[d] || 0);
-            totalTransfer += (data.dailyTransfers?.[m]?.[d] || 0);
+            totalSales += (data?.dailySales?.[m]?.[d] || 0);
+            totalTransfer += (data?.dailyTransfers?.[m]?.[d] || 0);
+        });
+    }
+
+    // Manual data (if monthKey provided)
+    const mKey = monthKey || currentMonth;
+    if (mKey) {
+        const [y, mo] = mKey.split('-').map(Number);
+        const dim = new Date(y, mo, 0).getDate();
+        const manualLimit = limitDays !== null ? Math.min(limitDays, dim) : dim;
+        activeMachines.forEach(m => {
+            for (let d = 1; d <= manualLimit; d++) {
+                const manual = getManualDayData(m, mKey, d);
+                if (manual) {
+                    totalSales += (manual.card || 0) + (manual.pc || 0);
+                    totalTransfer += (manual.transfer || 0);
+                }
+            }
         });
     }
 
     const machineSales = {};
     activeMachines.forEach(m => {
         let s = 0;
-        for (let d = 0; d < numDays; d++) s += (data.dailySales?.[m]?.[d] || 0);
+        for (let d = 0; d < Math.min(numDays, maxDays); d++) s += (data?.dailySales?.[m]?.[d] || 0);
+        // Add manual sales per machine
+        if (mKey) {
+            const [y, mo] = mKey.split('-').map(Number);
+            const dim = new Date(y, mo, 0).getDate();
+            const manualLimit = limitDays !== null ? Math.min(limitDays, dim) : dim;
+            for (let d = 1; d <= manualLimit; d++) {
+                const manual = getManualDayData(m, mKey, d);
+                if (manual) s += (manual.card || 0) + (manual.pc || 0);
+            }
+        }
         machineSales[m] = s;
     });
 
-    return { totalSales, totalTransfer, machineSales, numDays };
+    return { totalSales, totalTransfer, machineSales, numDays: Math.max(numDays, maxDays) };
 }
 
 function renderChangeKPI(elId, valA, valB) {
@@ -720,9 +784,10 @@ function renderChangeKPI(elId, valA, valB) {
 function renderCompareChart(dataA, dataB, monthKeyA, monthKeyB, limitDays = null) {
     if (compareChartInst) compareChartInst.destroy();
 
-    const maxDaysA = dataA.dateHeaders?.length || 0;
-    const maxDaysB = dataB.dateHeaders?.length || 0;
-    const maxDays = limitDays !== null ? limitDays : Math.max(maxDaysA, maxDaysB);
+    const maxDaysA = dataA?.dateHeaders?.length || 0;
+    const maxDaysB = dataB?.dateHeaders?.length || 0;
+    const fallbackDays = Math.max(maxDaysA, maxDaysB) || 31;
+    const maxDays = limitDays !== null ? limitDays : fallbackDays;
     const labels = Array.from({ length: maxDays }, (_, i) => i + 1);
 
     const activeMachines = currentMachine === '__all__' ? MACHINE_NAMES : [currentMachine];
@@ -730,8 +795,8 @@ function renderCompareChart(dataA, dataB, monthKeyA, monthKeyB, limitDays = null
     for (let d = 0; d < maxDays; d++) {
         let sA = 0, sB = 0;
         activeMachines.forEach(m => {
-            if (d < maxDaysA) sA += (dataA.dailySales?.[m]?.[d] || 0);
-            if (d < maxDaysB) sB += (dataB.dailySales?.[m]?.[d] || 0);
+            if (d < maxDaysA) sA += (dataA?.dailySales?.[m]?.[d] || 0);
+            if (d < maxDaysB) sB += (dataB?.dailySales?.[m]?.[d] || 0);
         });
         salesA.push(sA);
         salesB.push(sB);
@@ -771,8 +836,8 @@ function renderCompareChart(dataA, dataB, monthKeyA, monthKeyB, limitDays = null
 }
 
 function renderCompareMachineTable(dataA, dataB, monthKeyA, monthKeyB, limitDays = null) {
-    const totA = computeMonthTotals(dataA, null, limitDays);
-    const totB = computeMonthTotals(dataB, null, limitDays);
+    const totA = computeMonthTotals(dataA, null, limitDays, monthKeyA);
+    const totB = computeMonthTotals(dataB, null, limitDays, monthKeyB);
 
     let headHTML = `<tr><th>${t('col_machine')}</th><th>${getMonthLabel(monthKeyA)}</th><th>${getMonthLabel(monthKeyB)}</th><th>${t('col_change')}</th></tr>`;
     $('compareMachineHead').innerHTML = headHTML;
@@ -819,8 +884,8 @@ function renderTrendsMonthly() {
     const salesData = [], transferData = [];
 
     availableMonths.forEach(key => {
-        const d = allMonthsData[key];
-        const tot = computeMonthTotals(d);
+        const d = allMonthsData[key] || null;
+        const tot = computeMonthTotals(d, null, null, key);
         salesData.push(tot.totalSales);
         transferData.push(tot.totalTransfer);
     });
@@ -870,7 +935,7 @@ function renderTrendsStacked() {
         const salesData = [], transferData = [];
         availableMonths.forEach(key => {
             const d = allMonthsData[key];
-            const tot = computeMonthTotals(d, [m]);
+            const tot = computeMonthTotals(d, [m], null, key);
             salesData.push(tot.totalSales);
             transferData.push(tot.totalTransfer);
         });
@@ -912,7 +977,7 @@ function renderTrendsStacked() {
         const datasets = MACHINE_NAMES.map((m, idx) => {
             const data = availableMonths.map(key => {
                 const d = allMonthsData[key];
-                const tot = computeMonthTotals(d, [m]);
+                const tot = computeMonthTotals(d || null, [m], null, key);
                 return tot.totalSales;
             });
             return {

@@ -114,8 +114,16 @@ const TRANSLATIONS = {
         rev_weekdays: ['一', '二', '三', '四', '五', '六', '日'],
         rev_month_summary: '月度汇总',
         rev_click_day: '选择查看',
-        rev_no_day_selected: '点击日历中的某天',
         rev_no_data_day: '暂无数据',
+
+        // Card vs PC KPIs
+        rpt_card_sales: '卡营业额',
+        rpt_pc_sales: 'PC 营业额',
+        rpt_card_pc_ratio: '卡 / PC 比例',
+        rpt_pct_total: '{pct} 占总计',
+        rpt_ratio_text: '卡是 PC 的 {ratio} 倍',
+        rpt_only_card: '100% 卡',
+        rpt_no_pc: '无 PC',
 
         // Misc
         updated_at: '更新于：',
@@ -235,8 +243,16 @@ const TRANSLATIONS = {
         rev_weekdays: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
         rev_month_summary: 'Tổng Kết Tháng',
         rev_click_day: 'Chọn ngày để xem',
-        rev_no_day_selected: 'Bấm vào 1 ngày trên lịch',
         rev_no_data_day: 'Chưa có dữ liệu',
+
+        // Card vs PC KPIs
+        rpt_card_sales: 'DOANH SỐ THẺ',
+        rpt_pc_sales: 'DOANH SỐ PC',
+        rpt_card_pc_ratio: 'TỶ LỆ THẺ / PC',
+        rpt_pct_total: '{pct} tổng Thẻ+PC',
+        rpt_ratio_text: 'Thẻ gấp {ratio} lần PC',
+        rpt_only_card: '100% Thẻ',
+        rpt_no_pc: 'Không có PC',
 
         // Misc
         updated_at: 'Cập nhật: ',

@@ -262,6 +262,34 @@
                     </div>
                 </div>
 
+                <!-- Card vs PC Breakdown -->
+                <div class="stats-row" id="rptCardPcRow" style="display:none; grid-template-columns: repeat(3, 1fr);">
+                    <div class="stat-card glass-card" style="border-left: 4px solid #2563eb;">
+                        <div class="stat-icon" style="background: rgba(37,99,235,0.15); color: #2563eb;"><i class="fas fa-credit-card"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="rpt_card_sales">Doanh Số Thẻ</span>
+                            <span class="stat-value" id="rptCardSales">0</span>
+                            <span class="stat-sub" id="rptCardPct" style="color:#2563eb;"></span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card" style="border-left: 4px solid #7c3aed;">
+                        <div class="stat-icon" style="background: rgba(124,58,237,0.15); color: #7c3aed;"><i class="fas fa-desktop"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="rpt_pc_sales">Doanh Số PC</span>
+                            <span class="stat-value" id="rptPcSales">0</span>
+                            <span class="stat-sub" id="rptPcPct" style="color:#7c3aed;"></span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card" style="border-left: 4px solid #f59e0b;">
+                        <div class="stat-icon" style="background: rgba(245,158,11,0.15); color: #f59e0b;"><i class="fas fa-percent"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label" data-i18n="rpt_card_pc_ratio">Tỷ Lệ Thẻ / PC</span>
+                            <span class="stat-value" id="rptCardPcRatio" style="font-size: 22px;">—</span>
+                            <span class="stat-sub" id="rptCardPcRatioSub"></span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Row: Daily Chart + Distribution Donut -->
                 <div class="chart-row">
                     <div class="glass-card chart-card chart-wide">
