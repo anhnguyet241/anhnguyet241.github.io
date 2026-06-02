@@ -6,6 +6,7 @@
 
 // ── State ──
 let allSheetsData = {};
+let _realSheetsCache = {}; // Cache dữ liệu thật từ tất cả tháng, dùng cho modal chi tiết KH
 let currentSheetData = [];
 let dailyHeaders = [];
 let sortDirection = {};
@@ -167,6 +168,35 @@ $('machineSelectDropdown')?.addEventListener('change', (e) => {
     loadMachine(val, machineData);
 });
 
+// ── Tự động tạo tháng hiện tại nếu chưa tồn tại ──
+function ensureCurrentMonth(machineData) {
+    if (!machineData || !machineData.months) return;
+    
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Nếu tháng hiện tại đã có dữ liệu thật → không cần làm gì
+    if (machineData.months[currentMonthKey]) return;
+    
+    // Tìm tháng gần nhất có dữ liệu
+    const existingMonths = Object.keys(machineData.months).sort((a, b) => b.localeCompare(a));
+    if (existingMonths.length === 0) return;
+    
+    const latestMonth = existingMonths[0]; // tháng gần nhất
+    const latestData = machineData.months[latestMonth];
+    
+    // Tạo entry ảo cho tháng hiện tại — carry-over KH từ tháng gần nhất
+    machineData.months[currentMonthKey] = {
+        sheetNames: latestData.sheetNames ? [...latestData.sheetNames] : [],
+        headers: [],              // Không có header ngày (chưa có giao dịch)
+        uploadedAt: new Date().toISOString(),
+        _isVirtual: true,         // Đánh dấu là tháng ảo (client-side only)
+        _sourceMonth: latestMonth  // Tháng nguồn để carry-over KH
+    };
+    
+    console.log(`[AUTO-MONTH] Tạo tháng ảo ${currentMonthKey} từ dữ liệu ${latestMonth}`);
+}
+
 async function loadMachine(machineId, machineData) {
     // Set giá trị dropdown (nếu có)
     const machineDropdown = $('machineSelectDropdown');
@@ -179,6 +209,9 @@ async function loadMachine(machineId, machineData) {
     if ($('machineSplashGrid')) $('machineSplashGrid').style.display = 'none';
     if ($('machineLoadingSpinner')) $('machineLoadingSpinner').style.display = 'flex';
     
+    // Tự động đảm bảo tháng hiện tại luôn tồn tại
+    ensureCurrentMonth(machineData);
+    
     // Set up month dropdown
     if (monthSelectDropdown) {
         monthSelectDropdown.innerHTML = `<option value="__all__" data-i18n-key="month_all">${t('month_all')}</option>`;
@@ -187,7 +220,10 @@ async function loadMachine(machineId, machineData) {
             monthKeys.forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = m;
-                opt.textContent = `📅 ${m}`;
+                const mData = machineData.months[m];
+                const isVirtual = mData && mData._isVirtual;
+                opt.textContent = isVirtual ? `🆕 ${m} (Tháng mới)` : `📅 ${m}`;
+                if (isVirtual) opt.style.color = '#10b981'; // Màu xanh lá cho tháng mới
                 monthSelectDropdown.appendChild(opt);
             });
             currentMonthKey = monthKeys.length > 0 ? monthKeys[0] : '__all__';
@@ -219,6 +255,61 @@ async function loadMachine(machineId, machineData) {
     }
 
     await loadMonthData(currentMonthKey);
+
+    // Nếu đang xem tháng ảo, preload cache dữ liệu thật từ tất cả tháng
+    // để modal chi tiết KH có dữ liệu lịch sử hiển thị
+    const currentMData = machineData?.months?.[currentMonthKey];
+    if (currentMData && currentMData._isVirtual && Object.keys(_realSheetsCache).length === 0) {
+        console.log('[AUTO-MONTH] Preloading real data cache for detail modal...');
+        await _preloadRealDataCache(machineData);
+    }
+}
+
+// ── Preload dữ liệu thật cho modal chi tiết KH (chạy khi xem tháng ảo) ──
+async function _preloadRealDataCache(machineData) {
+    if (!machineData?.months) return;
+    
+    _realSheetsCache = {};
+    
+    for (const [mKey, mData] of Object.entries(machineData.months)) {
+        if (mData._isVirtual) continue; // Bỏ qua tháng ảo
+        
+        const sheetNames = mData.sheetNames || [];
+        for (const sName of sheetNames) {
+            const docId = `machine_${window._currentMachineId}_${mKey}_${sName}`;
+            try {
+                const doc = await db.collection('analytics_sheets').doc(docId).get();
+                if (doc.exists) {
+                    if (!_realSheetsCache[sName]) _realSheetsCache[sName] = { customers: [] };
+                    
+                    const existingMap = new Map();
+                    _realSheetsCache[sName].customers.forEach(c => {
+                        const k = String(c.code || c.id || c.name || '').trim();
+                        if (k) existingMap.set(k, c);
+                    });
+                    
+                    const customers = doc.data().customers || [];
+                    customers.forEach(c => {
+                        const k = String(c.code || c.id || c.name || '').trim();
+                        if (!k) return;
+                        if (existingMap.has(k)) {
+                            const existing = existingMap.get(k);
+                            existing.total += (c.total || 0);
+                            Object.assign(existing.daily, c.daily || {});
+                        } else {
+                            existingMap.set(k, { ...c });
+                        }
+                    });
+                    
+                    _realSheetsCache[sName].customers = Array.from(existingMap.values());
+                }
+            } catch (err) {
+                console.warn(`[CACHE] Failed to load ${docId}:`, err);
+            }
+        }
+    }
+    
+    console.log(`[AUTO-MONTH] Cache loaded: ${Object.keys(_realSheetsCache).length} sheets`);
 }
 
 async function loadMonthData(monthKey) {
@@ -235,6 +326,8 @@ async function loadMonthData(monthKey) {
     if (machineData.months) {
         if (monthKey === '__all__') {
             for (const [mKey, mData] of Object.entries(machineData.months)) {
+                // Bỏ qua tháng ảo khi xem tổng hợp (tránh trùng KH)
+                if (mData._isVirtual) continue;
                 mData.headers?.forEach(h => allHeaders.add(h));
                 mData.sheetNames?.forEach(s => {
                     uniqueSheets.add(s);
@@ -244,11 +337,28 @@ async function loadMonthData(monthKey) {
         } else {
             const mData = machineData.months[monthKey];
             if (mData) {
-                mData.headers?.forEach(h => allHeaders.add(h));
-                mData.sheetNames?.forEach(s => {
-                    uniqueSheets.add(s);
-                    docsToFetch.push({ name: s, month: monthKey, id: `machine_${window._currentMachineId}_${monthKey}_${s}` });
-                });
+                if (mData._isVirtual && mData._sourceMonth) {
+                    // Tháng ảo: fetch KH từ tháng nguồn, sẽ zero-out sau
+                    const sourceData = machineData.months[mData._sourceMonth];
+                    if (sourceData) {
+                        // Không thêm headers (chưa có giao dịch ngày nào)
+                        sourceData.sheetNames?.forEach(s => {
+                            uniqueSheets.add(s);
+                            docsToFetch.push({ 
+                                name: s, 
+                                month: mData._sourceMonth, 
+                                id: `machine_${window._currentMachineId}_${mData._sourceMonth}_${s}`,
+                                _zeroOut: true  // Flag: zero-out tất cả daily & total
+                            });
+                        });
+                    }
+                } else {
+                    mData.headers?.forEach(h => allHeaders.add(h));
+                    mData.sheetNames?.forEach(s => {
+                        uniqueSheets.add(s);
+                        docsToFetch.push({ name: s, month: monthKey, id: `machine_${window._currentMachineId}_${monthKey}_${s}` });
+                    });
+                }
             }
         }
     } else {
@@ -292,7 +402,17 @@ async function loadMonthData(monthKey) {
                     const key = String(c.code || c.id || c.name || '').trim();
                     if (!key) return;
                     
-                    if (map.has(key)) {
+                    if (task._zeroOut) {
+                        // Tháng ảo: giữ thông tin KH nhưng reset giao dịch về 0
+                        map.set(key, {
+                            id: c.id,
+                            code: c.code || '',
+                            name: c.name,
+                            cardType: c.cardType || '',
+                            total: 0,
+                            daily: {}
+                        });
+                    } else if (map.has(key)) {
                         const existing = map.get(key);
                         existing.total += (c.total || 0);
                         Object.assign(existing.daily, c.daily || {});
@@ -303,9 +423,114 @@ async function loadMonthData(monthKey) {
             }
         }
         
+        // ── Carry-over: Merge KH từ tháng trước nếu đang xem 1 tháng cụ thể ──
+        if (monthKey !== '__all__' && machineData.months) {
+            // Tìm tháng trước gần nhất (không phải virtual)
+            const allMonthKeys = Object.keys(machineData.months)
+                .filter(k => k < monthKey && !machineData.months[k]._isVirtual)
+                .sort((a, b) => b.localeCompare(a));
+            
+            if (allMonthKeys.length > 0) {
+                const prevMonth = allMonthKeys[0];
+                const prevData = machineData.months[prevMonth];
+                const prevSheets = prevData?.sheetNames || [];
+                
+                for (const sName of prevSheets) {
+                    const prevDocId = `machine_${window._currentMachineId}_${prevMonth}_${sName}`;
+                    try {
+                        const prevDoc = await db.collection('analytics_sheets').doc(prevDocId).get();
+                        if (prevDoc.exists) {
+                            if (!sheetCustomerMaps[sName]) sheetCustomerMaps[sName] = new Map();
+                            const map = sheetCustomerMaps[sName];
+                            
+                            const prevCustomers = prevDoc.data().customers || [];
+                            prevCustomers.forEach(c => {
+                                const key = String(c.code || c.id || c.name || '').trim();
+                                if (!key) return;
+                                // Chỉ thêm nếu KH chưa có trong tháng hiện tại
+                                if (!map.has(key)) {
+                                    // Giữ lại daily data từ tháng trước để hiện "Lần GD Gần Nhất"
+                                    map.set(key, {
+                                        code: c.code || '',
+                                        name: c.name || '',
+                                        cardType: c.cardType || '',
+                                        total: c.total || 0,
+                                        daily: c.daily || {},
+                                        _fromPrevMonth: prevMonth  // Đánh dấu là KH carry-over
+                                    });
+                                }
+                            });
+                            
+                            // Đảm bảo sheet name có trong uniqueSheets
+                            uniqueSheets.add(sName);
+                        }
+                    } catch (e) {
+                        console.warn(`[CARRY-OVER] Failed to load ${prevDocId}:`, e);
+                    }
+                }
+                
+                // Thêm headers từ tháng trước để getLastTxDate() tìm được ngày GD cuối
+                const prevHeaders = prevData?.headers || [];
+                prevHeaders.forEach(h => allHeaders.add(h));
+                
+                console.log('[CARRY-OVER] Merged customers from', prevMonth, 'into', monthKey);
+            }
+        }
+
+        // Rebuild dailyHeaders sau carry-over (có thể có thêm headers từ tháng trước)
+        dailyHeaders = Array.from(allHeaders).filter(h => {
+            const s = String(h).trim();
+            return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
+        }).sort((a, b) => {
+            const parseDate = (headerKey) => {
+                const s = String(headerKey).trim();
+                if (!isNaN(s) && Number(s) > 40000) {
+                    const u = new Date(Date.UTC(1899, 11, 30, 12, 0, 0) + Number(s) * 86400000);
+                    return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate()).getTime();
+                }
+                const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+                if (cnMatch) return new Date(new Date().getFullYear(), parseInt(cnMatch[1]) - 1, parseInt(cnMatch[2])).getTime();
+                return 0;
+            };
+            return parseDate(a) - parseDate(b);
+        });
+
         // Convert map back to array
         for (const [sName, map] of Object.entries(sheetCustomerMaps)) {
             allSheetsData[sName] = { customers: Array.from(map.values()) };
+        }
+
+        // Lưu cache dữ liệu thật (không phải tháng ảo) để modal chi tiết KH dùng
+        const currentMachineMonths = machineData?.months || {};
+        const isVirtualMonth = currentMachineMonths[monthKey]?._isVirtual;
+        if (!isVirtualMonth && monthKey !== '__all__') {
+            // Lưu dữ liệu tháng thật vào cache
+            for (const [sName, sData] of Object.entries(allSheetsData)) {
+                if (!_realSheetsCache[sName]) _realSheetsCache[sName] = { customers: [] };
+                const existingMap = new Map();
+                _realSheetsCache[sName].customers.forEach(c => {
+                    const k = String(c.code || c.id || c.name || '').trim();
+                    if (k) existingMap.set(k, c);
+                });
+                sData.customers.forEach(c => {
+                    const k = String(c.code || c.id || c.name || '').trim();
+                    if (!k) return;
+                    if (existingMap.has(k)) {
+                        const existing = existingMap.get(k);
+                        existing.total += (c.total || 0);
+                        Object.assign(existing.daily, c.daily || {});
+                    } else {
+                        existingMap.set(k, { ...c });
+                    }
+                });
+                _realSheetsCache[sName].customers = Array.from(existingMap.values());
+            }
+        } else if (monthKey === '__all__') {
+            // Khi xem tất cả → cache luôn là bản đầy đủ nhất
+            _realSheetsCache = {};
+            for (const [sName, sData] of Object.entries(allSheetsData)) {
+                _realSheetsCache[sName] = { customers: sData.customers.map(c => ({ ...c, daily: { ...c.daily } })) };
+            }
         }
 
         // Setup sheet dropdown
@@ -386,6 +611,7 @@ function mergeAllSheets() {
 
     sheetNames.forEach(sheetName => {
         const sheet = allSheetsData[sheetName];
+        if (!sheet) return;
         const customers = sheet.customers || [];
 
         customers.forEach(item => {
@@ -516,7 +742,7 @@ function analyzeAndRender() {
             item._category = 'normal'; 
         }
 
-        labels.push((item.name || item.id).substring(0, 22));
+        labels.push((item.name || item.id || item.code || '—').substring(0, 22));
         totals.push(item.total);
         bgColors.push(item._category === 'high' ? 'rgba(0,200,83,0.75)' :
             item._category === 'low' ? 'rgba(255,23,68,0.75)' : 'rgba(41,121,255,0.75)');
@@ -1141,14 +1367,80 @@ function openCustomerDetail(item) {
         ct.style.display = 'none';
     }
 
+    // ── Kiểm tra xem đang xem tháng ảo không ──
+    const machineData = systemMeta?.machines?.[`machine_${window._currentMachineId}`] || systemMeta?.machines?.[window._currentMachineId];
+    const currentMData = machineData?.months?.[currentMonthKey];
+    const isViewingVirtual = currentMData && currentMData._isVirtual;
+
+    // Nếu đang xem tháng ảo → lấy dữ liệu KH từ TẤT CẢ tháng thật
+    // Nếu đang xem tháng thật → dùng dailyHeaders như bình thường
+    let headersToUse = dailyHeaders;
+    let dailyToUse = item.daily || {};
+
+    if (isViewingVirtual) {
+        // Thu thập headers và daily data từ tất cả tháng thật
+        const allRealHeaders = new Set();
+        const mergedDaily = {};
+        const customerKey = String(item.code || item.id || item.name || '').trim();
+
+        if (machineData?.months) {
+            for (const [mKey, mData] of Object.entries(machineData.months)) {
+                if (mData._isVirtual) continue; // Bỏ qua tháng ảo
+                mData.headers?.forEach(h => allRealHeaders.add(h));
+            }
+        }
+
+        // Tìm dữ liệu KH này trong _realSheetsCache (cache dữ liệu thật)
+        const cacheToSearch = Object.keys(_realSheetsCache).length > 0 ? _realSheetsCache : allSheetsData;
+        for (const [sheetName, sheetData] of Object.entries(cacheToSearch)) {
+            const customers = sheetData.customers || [];
+            const found = customers.find(c => {
+                const k = String(c.code || c.id || c.name || '').trim();
+                return k === customerKey;
+            });
+            if (found && found.daily) {
+                Object.entries(found.daily).forEach(([h, v]) => {
+                    mergedDaily[h] = (mergedDaily[h] || 0) + v;
+                    allRealHeaders.add(h);
+                });
+            }
+        }
+
+        // Nếu cache hiện tại trống (vì đang xem tháng ảo), cần fetch lại từ tháng nguồn
+        if (Object.keys(mergedDaily).length === 0 && currentMData._sourceMonth) {
+            // Dùng item gốc nhưng với daily trống (đã zero-out)
+            // Sẽ fetch bất đồng bộ ở dưới
+        }
+
+        headersToUse = Array.from(allRealHeaders).filter(h => {
+            const s = String(h).trim();
+            return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
+        }).sort((a, b) => {
+            const parseDate = (headerKey) => {
+                const s = String(headerKey).trim();
+                if (!isNaN(s) && Number(s) > 40000) {
+                    const u = new Date(Date.UTC(1899, 11, 30, 12, 0, 0) + Number(s) * 86400000);
+                    return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate()).getTime();
+                }
+                const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+                if (cnMatch) return new Date(new Date().getFullYear(), parseInt(cnMatch[1]) - 1, parseInt(cnMatch[2])).getTime();
+                return 0;
+            };
+            return parseDate(a) - parseDate(b);
+        });
+
+        if (Object.keys(mergedDaily).length > 0) {
+            dailyToUse = mergedDaily;
+        }
+    }
+
     // Parse all dates and group by month
-    const daily = item.daily || {};
     const dateEntries = []; // [{date, headerKey, value}]
     
-    dailyHeaders.forEach(h => {
+    headersToUse.forEach(h => {
         const d = parseHeaderToDate(h);
         if (d) {
-            dateEntries.push({ date: d, headerKey: h, value: daily[h] || 0 });
+            dateEntries.push({ date: d, headerKey: h, value: dailyToUse[h] || 0 });
         }
     });
 
@@ -1159,6 +1451,26 @@ function openCustomerDetail(item) {
         if (!months[key]) months[key] = [];
         months[key].push(e);
     });
+
+    // Nếu đang xem tháng ảo → thêm tháng hiện tại vào dropdown (dù chưa có giao dịch)
+    if (isViewingVirtual) {
+        const now = new Date();
+        const curMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        if (!months[curMonthKey]) {
+            // Tạo entries rỗng cho tất cả ngày trong tháng hiện tại
+            const year = now.getFullYear();
+            const month = now.getMonth(); // 0-indexed
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            months[curMonthKey] = [];
+            for (let d = 1; d <= daysInMonth; d++) {
+                months[curMonthKey].push({
+                    date: new Date(year, month, d),
+                    headerKey: `${month + 1}月${d}日`,
+                    value: 0
+                });
+            }
+        }
+    }
 
     const monthKeys = Object.keys(months).sort();
 
@@ -1187,11 +1499,17 @@ function openCustomerDetail(item) {
         monthSelect.appendChild(opt);
     });
 
-    // Default to the latest month with actual transactions
+    // Default: ưu tiên tháng hiện tại, nếu không có thì tháng gần nhất có giao dịch
+    const now = new Date();
+    const currentCalMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     let defaultMonth = '__all__';
-    for (let i = monthKeys.length - 1; i >= 0; i--) {
-        const hasAny = months[monthKeys[i]].some(e => e.value > 0);
-        if (hasAny) { defaultMonth = monthKeys[i]; break; }
+    if (monthKeys.includes(currentCalMonth)) {
+        defaultMonth = currentCalMonth;
+    } else {
+        for (let i = monthKeys.length - 1; i >= 0; i--) {
+            const hasAny = months[monthKeys[i]].some(e => e.value > 0);
+            if (hasAny) { defaultMonth = monthKeys[i]; break; }
+        }
     }
     monthSelect.value = defaultMonth;
 
@@ -1506,6 +1824,32 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
         let customers = [];
         if (doc.exists) {
             customers = doc.data().customers || [];
+        } else {
+            // Doc chưa tồn tại — nếu là tháng ảo, carry-over tất cả KH từ tháng nguồn
+            const machineMetaKeyCheck = systemMeta?.machines?.[`machine_${machineId}`] ? `machine_${machineId}` : String(machineId);
+            const virtualMData = systemMeta?.machines?.[machineMetaKeyCheck]?.months?.[monthKey];
+            if (virtualMData && virtualMData._isVirtual && virtualMData._sourceMonth) {
+                const sourceDocId = `machine_${machineId}_${virtualMData._sourceMonth}_${staffName}`;
+                try {
+                    const sourceDoc = await db.collection('analytics_sheets').doc(sourceDocId).get();
+                    if (sourceDoc.exists) {
+                        customers = (sourceDoc.data().customers || []).map(c => {
+                            const cleaned = {
+                                code: c.code || '',
+                                name: c.name || '',
+                                cardType: c.cardType || '',
+                                total: 0,
+                                daily: {}
+                            };
+                            if (c.id !== undefined && c.id !== null) cleaned.id = c.id;
+                            return cleaned;
+                        });
+                        console.log(`[SAVE] Carry-over ${customers.length} KH từ ${virtualMData._sourceMonth}`);
+                    }
+                } catch (e) {
+                    console.warn('[SAVE] Failed to carry-over:', e);
+                }
+            }
         }
 
         let found = false;
@@ -1525,9 +1869,9 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
         if (!found) {
             // Khách hàng chưa tồn tại trong tháng này -> Tạo mới
             const newCustomer = {
-                code: _detailCurrentItem.code,
-                name: _detailCurrentItem.name,
-                cardType: _detailCurrentItem.cardType,
+                code: _detailCurrentItem.code || '',
+                name: _detailCurrentItem.name || '',
+                cardType: _detailCurrentItem.cardType || '',
                 daily: { [headerKey]: newValue },
                 total: Number(newValue) || 0
             };
@@ -1539,18 +1883,77 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
             await docRef.update({ customers });
         } else {
             await docRef.set({ customers });
-            // Cập nhật meta thêm sheetNames nếu chưa có
-            try {
-                const monthMeta = systemMeta?.machines?.[`machine_${machineId}`]?.months?.[monthKey];
-                if (monthMeta) {
-                    const updatedSheets = [...new Set([...(monthMeta.sheetNames || []), staffName])];
-                    monthMeta.sheetNames = updatedSheets;
-                    await db.collection('analytics').doc('meta').update({
-                        [`machines.machine_${machineId}.months.${monthKey}.sheetNames`]: updatedSheets
-                    });
+        }
+
+        // ── Đảm bảo tháng tồn tại trong Firestore meta (quan trọng cho tháng ảo!) ──
+        // Xác định đúng key máy trong systemMeta (có thể là "1" hoặc "machine_1")
+        const machineMetaKey = systemMeta?.machines?.[`machine_${machineId}`] ? `machine_${machineId}` : String(machineId);
+        let monthMeta = systemMeta?.machines?.[machineMetaKey]?.months?.[monthKey];
+        
+        if (!monthMeta || monthMeta._isVirtual) {
+            // Tháng chưa tồn tại thật trong Firestore → tạo mới
+            console.log(`[SAVE] Tạo tháng ${monthKey} thật trong Firestore meta`);
+            
+            // Lấy sheetNames từ tháng nguồn hoặc tháng ảo
+            const sourceMonth = monthMeta?._sourceMonth;
+            const sourceData = sourceMonth ? systemMeta?.machines?.[machineMetaKey]?.months?.[sourceMonth] : null;
+            const baseSheetNames = sourceData?.sheetNames || [];
+            const updatedSheets = [...new Set([...baseSheetNames, staffName])];
+            
+            const newMonthMeta = {
+                sheetNames: updatedSheets,
+                headers: [headerKey],
+                uploadedAt: new Date().toISOString()
+            };
+            
+            // Cập nhật Firestore meta
+            await db.collection('analytics').doc('meta').update({
+                [`machines.${machineMetaKey}.months.${monthKey}`]: newMonthMeta
+            });
+            
+            // Cập nhật local state (bỏ đánh dấu ảo)
+            if (!systemMeta.machines[machineMetaKey]) {
+                systemMeta.machines[machineMetaKey] = { id: machineId, name: `Máy 00${machineId}`, months: {} };
+            }
+            systemMeta.machines[machineMetaKey].months[monthKey] = newMonthMeta;
+            
+            // Tạo document Firestore cho các sheet khác (carry-over KH từ tháng nguồn)
+            if (sourceMonth) {
+                for (const sName of baseSheetNames) {
+                    if (sName === staffName) continue; // Đã lưu ở trên rồi
+                    const otherDocId = `machine_${machineId}_${monthKey}_${sName}`;
+                    const otherDocRef = db.collection('analytics_sheets').doc(otherDocId);
+                    const otherDoc = await otherDocRef.get();
+                    if (!otherDoc.exists) {
+                        // Copy KH từ tháng nguồn, reset daily/total = 0
+                        const sourceDocId = `machine_${machineId}_${sourceMonth}_${sName}`;
+                        const sourceDoc = await db.collection('analytics_sheets').doc(sourceDocId).get();
+                        if (sourceDoc.exists) {
+                            const sourceCustomers = sourceDoc.data().customers || [];
+                            const zeroedCustomers = sourceCustomers.map(c => {
+                                const cleaned = {
+                                    code: c.code || '',
+                                    name: c.name || '',
+                                    cardType: c.cardType || '',
+                                    total: 0,
+                                    daily: {}
+                                };
+                                if (c.id !== undefined && c.id !== null) cleaned.id = c.id;
+                                return cleaned;
+                            });
+                            await otherDocRef.set({ customers: zeroedCustomers });
+                        }
+                    }
                 }
-            } catch (metaErr) {
-                console.warn('Meta sheetNames update failed:', metaErr);
+            }
+        } else {
+            // Tháng đã tồn tại → chỉ cập nhật sheetNames nếu cần
+            const updatedSheets = [...new Set([...(monthMeta.sheetNames || []), staffName])];
+            if (updatedSheets.length !== (monthMeta.sheetNames || []).length) {
+                monthMeta.sheetNames = updatedSheets;
+                await db.collection('analytics').doc('meta').update({
+                    [`machines.${machineMetaKey}.months.${monthKey}.sheetNames`]: updatedSheets
+                });
             }
         }
 
