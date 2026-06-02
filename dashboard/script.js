@@ -1415,19 +1415,23 @@ async function openCustomerDetail(item) {
         }
 
         // Fetch SONG SONG tất cả docs (nhanh hơn nhiều)
-        const docIds = [];
+        const docRequests = []; // [{id, monthKey}]
         for (const mKey of realMonthKeys) {
             for (const sName of allSheetNames) {
-                docIds.push(`machine_${window._currentMachineId}_${mKey}_${sName}`);
+                docRequests.push({
+                    id: `machine_${window._currentMachineId}_${mKey}_${sName}`,
+                    monthKey: mKey  // VD: "2026-06"
+                });
             }
         }
 
         const docs = await Promise.all(
-            docIds.map(id => db.collection('analytics_sheets').doc(id).get().catch(() => null))
+            docRequests.map(r => db.collection('analytics_sheets').doc(r.id).get().catch(() => null))
         );
 
         docs.forEach((doc, i) => {
             if (!doc || !doc.exists) return;
+            const docMonthKey = docRequests[i].monthKey; // Tháng của document này
             const custs = doc.data().customers || [];
             
             custs.forEach(c => {
@@ -1447,9 +1451,13 @@ async function openCustomerDetail(item) {
                 
                 if (matched && c.daily) {
                     Object.entries(c.daily).forEach(([h, v]) => {
-                        // REPLACE thay vì SUM — tránh cộng dồn từ nhiều sheet
-                        // Chỉ ghi đè nếu giá trị mới > 0 hoặc chưa có giá trị
                         if (v > 0) {
+                            // Kiểm tra: header date phải thuộc đúng tháng của document
+                            const parsedDate = parseHeaderToDate(h);
+                            if (parsedDate) {
+                                const hMonthKey = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}`;
+                                if (hMonthKey !== docMonthKey) return; // Ngày không thuộc tháng này → bỏ qua
+                            }
                             mergedDaily[h] = v;
                             allRealHeaders.add(h);
                         }
