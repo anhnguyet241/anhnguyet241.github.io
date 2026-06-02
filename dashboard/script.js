@@ -454,13 +454,13 @@ async function loadMonthData(monthKey) {
                                 const existing = map.get(key);
                                 const prevHasData = Object.keys(c.daily || {}).length > 0;
                                 // Thêm nếu chưa có, HOẶC nếu tháng hiện tại trống mà tháng trước có daily data
-                                if (!existing || (Object.keys(existing.daily || {}).length === 0 && prevHasData)) {
+                                if (!existing || (Object.keys(existing.daily || {}).length === 0 && (existing.total || 0) === 0)) {
                                     const carriedCustomer = {
                                         code: c.code || '',
                                         name: c.name || '',
                                         cardType: c.cardType || '',
-                                        total: c.total || 0,
-                                        daily: c.daily || {},
+                                        total: 0,           // Tháng mới: chưa có GD nào
+                                        daily: {},           // Tháng mới: daily trống
                                         _fromPrevMonth: prevMonth  // Đánh dấu là KH carry-over
                                     };
                                     if (c.id !== undefined && c.id !== null) carriedCustomer.id = c.id;
