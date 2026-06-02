@@ -1445,12 +1445,13 @@ async function openCustomerDetail(item) {
                 if (!matched && itemCode && (cCode === itemCode || cId === itemCode)) matched = true;
                 if (!matched && itemId && (cCode === itemId || cId === itemId)) matched = true;
                 if (!matched && itemNumeric.length >= 3 && cNumeric === itemNumeric) matched = true;
-                if (!matched && itemNumeric.length >= 3 && (String(c.code||'').includes(itemNumeric) || String(c.id||'').includes(itemNumeric))) matched = true;
                 
                 if (matched && c.daily) {
                     Object.entries(c.daily).forEach(([h, v]) => {
+                        // REPLACE thay vì SUM — tránh cộng dồn từ nhiều sheet
+                        // Chỉ ghi đè nếu giá trị mới > 0 hoặc chưa có giá trị
                         if (v > 0) {
-                            mergedDaily[h] = (mergedDaily[h] || 0) + v;
+                            mergedDaily[h] = v;
                             allRealHeaders.add(h);
                         }
                     });
@@ -1945,6 +1946,46 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
             await docRef.update({ customers });
         } else {
             await docRef.set({ customers });
+        }
+
+        // ── Xóa giá trị trùng ở các sheet khác (tránh cộng dồn khi hiển thị) ──
+        const machineMetaKeyClean = systemMeta?.machines?.[`machine_${machineId}`] ? `machine_${machineId}` : String(machineId);
+        const allMachineMonths = systemMeta?.machines?.[machineMetaKeyClean]?.months || {};
+        // Thu thập TẤT CẢ sheet names từ TẤT CẢ tháng (giống modal)
+        const allCleanupSheets = new Set();
+        Object.values(allMachineMonths).forEach(m => (m.sheetNames || []).forEach(s => allCleanupSheets.add(s)));
+        allCleanupSheets.delete(staffName); // Bỏ sheet vừa save
+        
+        const itemNameClean = String(_detailCurrentItem?.name || '').replace(/\s+/g, '').toLowerCase();
+        const itemNumClean = String(_detailCurrentItem?.code || _detailCurrentItem?.id || '').replace(/\D/g, '').replace(/^0+/, '');
+        
+        for (const otherSheet of allCleanupSheets) {
+            const otherDocId = `machine_${machineId}_${monthKey}_${otherSheet}`;
+            try {
+                const otherDoc = await db.collection('analytics_sheets').doc(otherDocId).get();
+                if (!otherDoc.exists) continue;
+                const otherCustomers = otherDoc.data().customers || [];
+                let changed = false;
+                otherCustomers.forEach(c => {
+                    // Fuzzy matching (giống modal)
+                    const k = String(c.code || c.id || c.name || '').trim();
+                    const cName = String(c.name || '').replace(/\s+/g, '').toLowerCase();
+                    const cNum = String(c.code || c.id || '').replace(/\D/g, '').replace(/^0+/, '');
+                    let match = (k && k === customerKey);
+                    if (!match && itemNameClean && cName === itemNameClean) match = true;
+                    if (!match && itemNameClean.length >= 8 && cName.length >= 8 && cName.substring(0,8) === itemNameClean.substring(0,8)) match = true;
+                    if (!match && itemNumClean.length >= 3 && cNum === itemNumClean) match = true;
+                    
+                    if (match && c.daily && c.daily[headerKey] !== undefined) {
+                        delete c.daily[headerKey];
+                        c.total = Object.values(c.daily).reduce((s, v) => s + (Number(v) || 0), 0);
+                        changed = true;
+                    }
+                });
+                if (changed) {
+                    await db.collection('analytics_sheets').doc(otherDocId).update({ customers: otherCustomers });
+                }
+            } catch (e) { /* ignore */ }
         }
 
         // ── Đảm bảo tháng tồn tại trong Firestore meta (quan trọng cho tháng ảo!) ──
