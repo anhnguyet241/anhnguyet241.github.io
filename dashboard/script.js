@@ -1441,7 +1441,6 @@ async function openCustomerDetail(item) {
                 if (cKey && cKey === customerKey) matched = true;
                 if (!matched && itemName && cName === itemName) matched = true;
                 if (!matched && itemName && norm(cName) === norm(itemName)) matched = true;
-                if (!matched && itemName.length >= 8 && cName.length >= 8 && norm(cName).substring(0, 8) === norm(itemName).substring(0, 8)) matched = true;
                 if (!matched && itemCode && (cCode === itemCode || cId === itemCode)) matched = true;
                 if (!matched && itemId && (cCode === itemId || cId === itemId)) matched = true;
                 if (!matched && itemNumeric.length >= 3 && cNumeric === itemNumeric) matched = true;
@@ -1973,7 +1972,6 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
                     const cNum = String(c.code || c.id || '').replace(/\D/g, '').replace(/^0+/, '');
                     let match = (k && k === customerKey);
                     if (!match && itemNameClean && cName === itemNameClean) match = true;
-                    if (!match && itemNameClean.length >= 8 && cName.length >= 8 && cName.substring(0,8) === itemNameClean.substring(0,8)) match = true;
                     if (!match && itemNumClean.length >= 3 && cNum === itemNumClean) match = true;
                     
                     if (match && c.daily && c.daily[headerKey] !== undefined) {
