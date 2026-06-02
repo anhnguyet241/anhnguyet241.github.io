@@ -256,13 +256,11 @@ async function loadMachine(machineId, machineData) {
 
     await loadMonthData(currentMonthKey);
 
-    // Nếu đang xem tháng ảo, preload cache dữ liệu thật từ tất cả tháng
-    // để modal chi tiết KH có dữ liệu lịch sử hiển thị
+    // Luôn preload cache dữ liệu thật từ tất cả tháng để modal chi tiết KH có dữ liệu lịch sử
     const currentMData = machineData?.months?.[currentMonthKey];
-    if (currentMData && currentMData._isVirtual && Object.keys(_realSheetsCache).length === 0) {
-        console.log('[AUTO-MONTH] Preloading real data cache for detail modal...');
-        await _preloadRealDataCache(machineData);
-    }
+    // LUÔN preload lại cache (reset mỗi lần load sheet)
+    console.log('[AUTO-MONTH] Preloading real data cache for detail modal...');
+    await _preloadRealDataCache(machineData);
 }
 
 // ── Preload dữ liệu thật cho modal chi tiết KH (chạy khi xem tháng ảo) ──
@@ -310,6 +308,12 @@ async function _preloadRealDataCache(machineData) {
     }
     
     console.log(`[AUTO-MONTH] Cache loaded: ${Object.keys(_realSheetsCache).length} sheets`);
+    // Debug: in ra tổng KH trong cache
+    for (const [sName, sData] of Object.entries(_realSheetsCache)) {
+        const custs = sData.customers || [];
+        const withData = custs.filter(c => Object.keys(c.daily || {}).length > 0);
+        console.log(`[AUTO-MONTH] Sheet "${sName}": ${custs.length} KH, ${withData.length} có daily data`);
+    }
 }
 
 async function loadMonthData(monthKey) {
@@ -447,17 +451,20 @@ async function loadMonthData(monthKey) {
                             prevCustomers.forEach(c => {
                                 const key = String(c.code || c.id || c.name || '').trim();
                                 if (!key) return;
-                                // Chỉ thêm nếu KH chưa có trong tháng hiện tại
-                                if (!map.has(key)) {
-                                    // Giữ lại daily data từ tháng trước để hiện "Lần GD Gần Nhất"
-                                    map.set(key, {
+                                const existing = map.get(key);
+                                const prevHasData = Object.keys(c.daily || {}).length > 0;
+                                // Thêm nếu chưa có, HOẶC nếu tháng hiện tại trống mà tháng trước có daily data
+                                if (!existing || (Object.keys(existing.daily || {}).length === 0 && prevHasData)) {
+                                    const carriedCustomer = {
                                         code: c.code || '',
                                         name: c.name || '',
                                         cardType: c.cardType || '',
                                         total: c.total || 0,
                                         daily: c.daily || {},
                                         _fromPrevMonth: prevMonth  // Đánh dấu là KH carry-over
-                                    });
+                                    };
+                                    if (c.id !== undefined && c.id !== null) carriedCustomer.id = c.id;
+                                    map.set(key, carriedCustomer);
                                 }
                             });
                             
@@ -1348,8 +1355,11 @@ function parseHeaderToDate(headerKey) {
     return null;
 }
 
+// Cache dữ liệu KH đã fetch từ Firestore (tránh fetch lại mỗi lần click)
+let _customerDataCache = {};
+
 // Open detail modal
-function openCustomerDetail(item) {
+async function openCustomerDetail(item) {
     _detailCurrentItem = item;
     const modal = $('detailModal');
 
@@ -1367,71 +1377,114 @@ function openCustomerDetail(item) {
         ct.style.display = 'none';
     }
 
-    // ── Kiểm tra xem đang xem tháng ảo không ──
     const machineData = systemMeta?.machines?.[`machine_${window._currentMachineId}`] || systemMeta?.machines?.[window._currentMachineId];
     const currentMData = machineData?.months?.[currentMonthKey];
     const isViewingVirtual = currentMData && currentMData._isVirtual;
 
-    // Nếu đang xem tháng ảo → lấy dữ liệu KH từ TẤT CẢ tháng thật
-    // Nếu đang xem tháng thật → dùng dailyHeaders như bình thường
     let headersToUse = dailyHeaders;
     let dailyToUse = item.daily || {};
 
-    if (isViewingVirtual) {
-        // Thu thập headers và daily data từ tất cả tháng thật
-        const allRealHeaders = new Set();
-        const mergedDaily = {};
-        const customerKey = String(item.code || item.id || item.name || '').trim();
+    const allRealHeaders = new Set();
+    let mergedDaily = {};
+    const customerKey = String(item.code || item.id || item.name || '').trim();
+    const cacheKey = `${window._currentMachineId}_${customerKey}`;
 
+    // Dùng cache nếu có
+    if (_customerDataCache[cacheKey]) {
+        const cached = _customerDataCache[cacheKey];
+        mergedDaily = { ...cached.daily };
+        cached.headers.forEach(h => allRealHeaders.add(h));
+    } else {
+        // Fetch từ Firestore — chỉ lần đầu
+        const itemName = String(item.name || '').trim();
+        const itemCode = String(item.code || '').trim();
+        const itemId = String(item.id || '').trim();
+        const itemNumeric = String(item.code || item.id || '').replace(/\D/g, '').replace(/^0+/, '');
+        const norm = s => s.replace(/\s+/g, '').toLowerCase();
+
+        // Thu thập tất cả sheet names và months
+        const allSheetNames = new Set();
+        const realMonthKeys = [];
         if (machineData?.months) {
             for (const [mKey, mData] of Object.entries(machineData.months)) {
-                if (mData._isVirtual) continue; // Bỏ qua tháng ảo
+                if (mData._isVirtual) continue;
+                realMonthKeys.push(mKey);
                 mData.headers?.forEach(h => allRealHeaders.add(h));
+                (mData.sheetNames || []).forEach(s => allSheetNames.add(s));
             }
         }
 
-        // Tìm dữ liệu KH này trong _realSheetsCache (cache dữ liệu thật)
-        const cacheToSearch = Object.keys(_realSheetsCache).length > 0 ? _realSheetsCache : allSheetsData;
-        for (const [sheetName, sheetData] of Object.entries(cacheToSearch)) {
-            const customers = sheetData.customers || [];
-            const found = customers.find(c => {
-                const k = String(c.code || c.id || c.name || '').trim();
-                return k === customerKey;
-            });
-            if (found && found.daily) {
-                Object.entries(found.daily).forEach(([h, v]) => {
-                    mergedDaily[h] = (mergedDaily[h] || 0) + v;
-                    allRealHeaders.add(h);
-                });
+        // Fetch SONG SONG tất cả docs (nhanh hơn nhiều)
+        const docIds = [];
+        for (const mKey of realMonthKeys) {
+            for (const sName of allSheetNames) {
+                docIds.push(`machine_${window._currentMachineId}_${mKey}_${sName}`);
             }
         }
 
-        // Nếu cache hiện tại trống (vì đang xem tháng ảo), cần fetch lại từ tháng nguồn
-        if (Object.keys(mergedDaily).length === 0 && currentMData._sourceMonth) {
-            // Dùng item gốc nhưng với daily trống (đã zero-out)
-            // Sẽ fetch bất đồng bộ ở dưới
-        }
+        const docs = await Promise.all(
+            docIds.map(id => db.collection('analytics_sheets').doc(id).get().catch(() => null))
+        );
 
-        headersToUse = Array.from(allRealHeaders).filter(h => {
-            const s = String(h).trim();
-            return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
-        }).sort((a, b) => {
-            const parseDate = (headerKey) => {
-                const s = String(headerKey).trim();
-                if (!isNaN(s) && Number(s) > 40000) {
-                    const u = new Date(Date.UTC(1899, 11, 30, 12, 0, 0) + Number(s) * 86400000);
-                    return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate()).getTime();
+        docs.forEach((doc, i) => {
+            if (!doc || !doc.exists) return;
+            const custs = doc.data().customers || [];
+            
+            custs.forEach(c => {
+                const cKey = String(c.code || c.id || c.name || '').trim();
+                const cName = String(c.name || '').trim();
+                const cCode = String(c.code || '').trim();
+                const cId = String(c.id || '').trim();
+                const cNumeric = String(c.code || c.id || '').replace(/\D/g, '').replace(/^0+/, '');
+                
+                let matched = false;
+                if (cKey && cKey === customerKey) matched = true;
+                if (!matched && itemName && cName === itemName) matched = true;
+                if (!matched && itemName && norm(cName) === norm(itemName)) matched = true;
+                if (!matched && itemName.length >= 8 && cName.length >= 8 && norm(cName).substring(0, 8) === norm(itemName).substring(0, 8)) matched = true;
+                if (!matched && itemCode && (cCode === itemCode || cId === itemCode)) matched = true;
+                if (!matched && itemId && (cCode === itemId || cId === itemId)) matched = true;
+                if (!matched && itemNumeric.length >= 3 && cNumeric === itemNumeric) matched = true;
+                if (!matched && itemNumeric.length >= 3 && (String(c.code||'').includes(itemNumeric) || String(c.id||'').includes(itemNumeric))) matched = true;
+                
+                if (matched && c.daily) {
+                    Object.entries(c.daily).forEach(([h, v]) => {
+                        if (v > 0) {
+                            mergedDaily[h] = (mergedDaily[h] || 0) + v;
+                            allRealHeaders.add(h);
+                        }
+                    });
                 }
-                const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
-                if (cnMatch) return new Date(new Date().getFullYear(), parseInt(cnMatch[1]) - 1, parseInt(cnMatch[2])).getTime();
-                return 0;
-            };
-            return parseDate(a) - parseDate(b);
+            });
         });
 
-        if (Object.keys(mergedDaily).length > 0) {
-            dailyToUse = mergedDaily;
-        }
+        // Lưu vào cache
+        _customerDataCache[cacheKey] = {
+            daily: { ...mergedDaily },
+            headers: [...allRealHeaders]
+        };
+    }
+
+    // Luôn ưu tiên dùng dữ liệu đã merge từ tất cả các tháng để hiển thị đầy đủ lịch sử
+    headersToUse = Array.from(allRealHeaders).filter(h => {
+        const s = String(h).trim();
+        return /^\d{1,2}月\d{1,2}日?$/.test(s) || (!isNaN(s) && Number(s) > 40000);
+    }).sort((a, b) => {
+        const parseDate = (headerKey) => {
+            const s = String(headerKey).trim();
+            if (!isNaN(s) && Number(s) > 40000) {
+                const u = new Date(Date.UTC(1899, 11, 30, 12, 0, 0) + Number(s) * 86400000);
+                return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate()).getTime();
+            }
+            const cnMatch = s.match(/^(\d{1,2})月(\d{1,2})日?$/);
+            if (cnMatch) return new Date(new Date().getFullYear(), parseInt(cnMatch[1]) - 1, parseInt(cnMatch[2])).getTime();
+            return 0;
+        };
+        return parseDate(a) - parseDate(b);
+    });
+
+    if (Object.keys(mergedDaily).length > 0) {
+        dailyToUse = mergedDaily;
     }
 
     // Parse all dates and group by month
@@ -1474,12 +1527,7 @@ function openCustomerDetail(item) {
 
     const monthKeys = Object.keys(months).sort();
 
-    // Summary stats
-    const activeDays = dateEntries.filter(e => e.value > 0).length;
-    const totalVal = dateEntries.reduce((s, e) => s + e.value, 0);
-    $('detailTotal').textContent = fmt(totalVal);
-    $('detailActiveDays').textContent = activeDays;
-    $('detailAvgDaily').textContent = activeDays > 0 ? fmt(Math.round(totalVal / activeDays)) : '0';
+    // Summary stats sẽ được tính trong renderDetailForMonth theo tháng đang chọn
 
     // Populate month selector
     const monthSelect = $('detailMonthSelect');
@@ -1532,6 +1580,13 @@ function renderDetailForMonth(months, monthKeys) {
     } else {
         entriesToShow = months[selectedMonth] || [];
     }
+
+    // Cập nhật summary stats theo tháng đang chọn
+    const activeDays = entriesToShow.filter(e => e.value > 0).length;
+    const totalVal = entriesToShow.reduce((s, e) => s + e.value, 0);
+    $('detailTotal').textContent = fmt(totalVal);
+    $('detailActiveDays').textContent = activeDays;
+    $('detailAvgDaily').textContent = activeDays > 0 ? fmt(Math.round(totalVal / activeDays)) : '0';
 
     // Find max value for color coding
     const maxVal = Math.max(1, ...entriesToShow.map(e => e.value));
@@ -1795,6 +1850,9 @@ function closeDayEditPopup() {
 
 // ── Lưu giao dịch ngày vào Firestore ──
 async function saveDayTransaction(dayNum, year, month, newValue, cell) {
+    // Clear customer detail cache vì data đang thay đổi
+    _customerDataCache = {};
+
     const saveBtn = document.querySelector('#calEditSaveBtn');
     if (saveBtn) {
         saveBtn.disabled = true;
@@ -1875,6 +1933,10 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
                 daily: { [headerKey]: newValue },
                 total: Number(newValue) || 0
             };
+            // Giữ lại id nếu có (quan trọng để tìm kiếm xuyên sheet)
+            if (_detailCurrentItem.id !== undefined && _detailCurrentItem.id !== null) {
+                newCustomer.id = _detailCurrentItem.id;
+            }
             customers.push(newCustomer);
         }
 
