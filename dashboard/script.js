@@ -362,6 +362,20 @@ async function loadMonthData(monthKey) {
                         uniqueSheets.add(s);
                         docsToFetch.push({ name: s, month: monthKey, id: `machine_${window._currentMachineId}_${monthKey}_${s}` });
                     });
+                    // Thêm sheet từ các tháng KHÁC (tránh bỏ sót sheet như Sophia)
+                    if (machineData.months) {
+                        const currentSheetSet = new Set(mData.sheetNames || []);
+                        Object.values(machineData.months).forEach(otherM => {
+                            if (otherM._isVirtual) return;
+                            (otherM.sheetNames || []).forEach(s => {
+                                if (!currentSheetSet.has(s)) {
+                                    currentSheetSet.add(s);
+                                    uniqueSheets.add(s);
+                                    docsToFetch.push({ name: s, month: monthKey, id: `machine_${window._currentMachineId}_${monthKey}_${s}` });
+                                }
+                            });
+                        });
+                    }
                 }
             }
         }
@@ -626,23 +640,24 @@ function mergeAllSheets() {
             if (!key) return;
 
             if (customerMap.has(key)) {
-                // Cộng dồn nếu trùng
+                // Cộng dồn nếu trùng — iterate TẤT CẢ daily keys (không chỉ dailyHeaders)
                 const existing = customerMap.get(key);
-                existing.total += item.total || 0;
-                // Cộng daily
-                dailyHeaders.forEach(h => {
-                    existing.daily[h] = (existing.daily[h] || 0) + (item.daily?.[h] || 0);
-                });
+                if (item.daily) {
+                    Object.entries(item.daily).forEach(([h, v]) => {
+                        existing.daily[h] = (existing.daily[h] || 0) + (v || 0);
+                    });
+                }
+                // Recalc total từ daily thực tế
+                existing.total = Object.values(existing.daily).reduce((s, v) => s + (Number(v) || 0), 0);
                 existing._staffList.push(sheetName);
             } else {
-                const daily = {};
-                dailyHeaders.forEach(h => { daily[h] = item.daily?.[h] || 0; });
+                const daily = { ...(item.daily || {}) };
                 customerMap.set(key, {
                     id: item.id,
                     code: item.code || '',
                     name: item.name,
                     cardType: item.cardType || '',
-                    total: item.total || 0,
+                    total: Object.values(daily).reduce((s, v) => s + (Number(v) || 0), 0),
                     daily,
                     _staffList: [sheetName]
                 });
@@ -2152,29 +2167,8 @@ async function saveDayTransaction(dayNum, year, month, newValue, cell) {
             setTimeout(() => cell.classList.remove('just-saved'), 900);
         }
 
-        // Re-render detail modal (calendar + summary + table)
-        const detailMonths = {};
-        const detailDateEntries = [];
-        dailyHeaders.forEach(h => {
-            const d = parseHeaderToDate(h);
-            if (d) detailDateEntries.push({ date: d, headerKey: h, value: _detailCurrentItem.daily[h] || 0 });
-        });
-        detailDateEntries.forEach(e => {
-            const key = `${e.date.getFullYear()}-${String(e.date.getMonth() + 1).padStart(2, '0')}`;
-            if (!detailMonths[key]) detailMonths[key] = [];
-            detailMonths[key].push(e);
-        });
-        const detailMonthKeys = Object.keys(detailMonths).sort();
-
-        // Update summary stats
-        const activeDays = detailDateEntries.filter(e => e.value > 0).length;
-        const totalVal = detailDateEntries.reduce((s, e) => s + e.value, 0);
-        $('detailTotal').textContent = fmt(totalVal);
-        $('detailActiveDays').textContent = activeDays;
-        $('detailAvgDaily').textContent = activeDays > 0 ? fmt(Math.round(totalVal / activeDays)) : '0';
-
-        // Re-render calendar and daily table
-        renderDetailForMonth(detailMonths, detailMonthKeys);
+        // Re-render detail modal — re-fetch đầy đủ từ Firestore (bao gồm data từ các sheet khác)
+        await openCustomerDetail(_detailCurrentItem);
 
         // Re-render main dashboard (KPI, charts, etc.)
         analyzeAndRender();
