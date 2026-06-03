@@ -464,31 +464,49 @@ async function loadMonthData(monthKey) {
                             prevCustomers.forEach(c => {
                                 const key = String(c.code || c.id || c.name || '').trim();
                                 if (!key) return;
+                                
                                 const existing = map.get(key);
-                                // Thêm nếu chưa có, HOẶC nếu tồn tại nhưng trống & chưa có _lastTxFromPrev
-                                if (!existing || (Object.keys(existing.daily || {}).length === 0 && (existing.total || 0) === 0 && !existing._lastTxFromPrev)) {
-                                    // Tính ngày GD cuối từ tháng này
+                                
+                                // Thêm nếu chưa có, HOẶC nếu tồn tại nhưng KHÔNG có GD thật & chưa có _lastTxFromPrev
+                                const hasRealTx = existing && Object.values(existing.daily || {}).some(v => (v || 0) > 0);
+                                
+                                if (!existing || (!hasRealTx && (existing.total || 0) === 0 && !existing._lastTxFromPrev)) {
+                                    // Tìm ngày GD cuối từ tháng này
                                     let lastTxFromPrev = null;
                                     if (c.daily) {
-                                        let latestDate = null;
-                                        Object.entries(c.daily).forEach(([h, v]) => {
-                                            if ((v || 0) > 0) {
+                                        const keysWithValue = Object.entries(c.daily)
+                                            .filter(([h, v]) => (v || 0) > 0)
+                                            .map(([h]) => h);
+                                        
+                                        if (keysWithValue.length > 0) {
+                                            let bestDate = null;
+                                            let bestKey = null;
+                                            keysWithValue.forEach(h => {
                                                 const d = parseHeaderToDate(h);
-                                                if (d && (!latestDate || d > latestDate)) {
-                                                    latestDate = d;
-                                                    lastTxFromPrev = h;
+                                                if (d && (!bestDate || d > bestDate)) {
+                                                    bestDate = d;
+                                                    bestKey = h;
                                                 }
+                                            });
+                                            
+                                            if (bestKey) {
+                                                lastTxFromPrev = bestKey;
+                                            } else {
+                                                const numericKeys = keysWithValue.filter(h => !isNaN(h)).sort((a, b) => Number(b) - Number(a));
+                                                lastTxFromPrev = numericKeys.length > 0 ? numericKeys[0] : keysWithValue[keysWithValue.length - 1];
                                             }
-                                        });
+                                        }
                                     }
+                                    
                                     const carriedCustomer = {
                                         code: c.code || '',
                                         name: c.name || '',
                                         cardType: c.cardType || '',
-                                        total: 0,           // Tháng mới: chưa có GD nào
-                                        daily: {},           // Tháng mới: daily trống
-                                        _fromPrevMonth: prevMonth,  // Đánh dấu là KH carry-over
-                                        _lastTxFromPrev: lastTxFromPrev  // Ngày GD cuối tháng trước
+                                        total: 0,
+                                        daily: {},
+                                        _fromPrevMonth: prevMonth,
+                                        _lastTxFromPrev: lastTxFromPrev,
+                                        _lastTxMonth: prevMonth
                                     };
                                     if (c.id !== undefined && c.id !== null) carriedCustomer.id = c.id;
                                     map.set(key, carriedCustomer);
@@ -666,6 +684,7 @@ function mergeAllSheets() {
                 // Preserve _lastTxFromPrev nếu existing chưa có
                 if (!existing._lastTxFromPrev && item._lastTxFromPrev) {
                     existing._lastTxFromPrev = item._lastTxFromPrev;
+                    existing._lastTxMonth = item._lastTxMonth;
                 }
             } else {
                 const daily = { ...(item.daily || {}) };
@@ -677,7 +696,8 @@ function mergeAllSheets() {
                     total: Object.values(daily).reduce((s, v) => s + (Number(v) || 0), 0),
                     daily,
                     _staffList: [sheetName],
-                    _lastTxFromPrev: item._lastTxFromPrev || null
+                    _lastTxFromPrev: item._lastTxFromPrev || null,
+                    _lastTxMonth: item._lastTxMonth || null
                 });
             }
         });
@@ -974,7 +994,21 @@ function renderTable() {
         const cardTypeDisplay = item.cardType || '<span style="color:var(--text-secondary)">—</span>';
         const staffDisplay = item._staffList ? item._staffList.join(', ') : $('sheetSelect').value;
         const lastTxHeader = getLastTxDate(item);
-        const lastTxDisplay = lastTxHeader ? formatDateLabel(lastTxHeader) : `<span class="tag tag-low">${t('never_tx')}</span>`;
+        
+        let lastTxDisplay;
+        if (lastTxHeader) {
+            // Nếu là carry-over date, thêm tháng gốc
+            if (item._lastTxMonth && !Object.keys(item.daily || {}).some(h => (item.daily[h] || 0) > 0)) {
+                const [y, m] = item._lastTxMonth.split('-');
+                const monthLabel = `T${parseInt(m)}`;
+                lastTxDisplay = `<span class="tag" style="background:var(--bg-hover);color:var(--text-secondary)">${formatDateLabel(lastTxHeader)} (${monthLabel})</span>`;
+            } else {
+                lastTxDisplay = formatDateLabel(lastTxHeader);
+            }
+        } else {
+            // Không có GD tháng này — hiện "Chưa GD tháng này" thay vì "Chưa bao giờ GD"
+            lastTxDisplay = `<span class="tag" style="background:var(--bg-hover);color:var(--text-secondary)">Chưa GD tháng này</span>`;
+        }
         
         // Cảnh báo trùng mã
         const code = String(item.code || '').trim();
