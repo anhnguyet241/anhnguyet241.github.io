@@ -441,15 +441,14 @@ async function loadMonthData(monthKey) {
             }
         }
         
-        // ── Carry-over: Merge KH từ tháng trước nếu đang xem 1 tháng cụ thể ──
+        // ── Carry-over: Merge KH từ TẤT CẢ tháng trước nếu đang xem 1 tháng cụ thể ──
         if (monthKey !== '__all__' && machineData.months) {
-            // Tìm tháng trước gần nhất (không phải virtual)
+            // Tìm tất cả tháng trước (không phải virtual), sắp xếp gần nhất trước
             const allMonthKeys = Object.keys(machineData.months)
                 .filter(k => k < monthKey && !machineData.months[k]._isVirtual)
                 .sort((a, b) => b.localeCompare(a));
             
-            if (allMonthKeys.length > 0) {
-                const prevMonth = allMonthKeys[0];
+            for (const prevMonth of allMonthKeys) {
                 const prevData = machineData.months[prevMonth];
                 const prevSheets = prevData?.sheetNames || [];
                 
@@ -466,16 +465,30 @@ async function loadMonthData(monthKey) {
                                 const key = String(c.code || c.id || c.name || '').trim();
                                 if (!key) return;
                                 const existing = map.get(key);
-                                const prevHasData = Object.keys(c.daily || {}).length > 0;
-                                // Thêm nếu chưa có, HOẶC nếu tháng hiện tại trống mà tháng trước có daily data
-                                if (!existing || (Object.keys(existing.daily || {}).length === 0 && (existing.total || 0) === 0)) {
+                                // Thêm nếu chưa có, HOẶC nếu tồn tại nhưng trống & chưa có _lastTxFromPrev
+                                if (!existing || (Object.keys(existing.daily || {}).length === 0 && (existing.total || 0) === 0 && !existing._lastTxFromPrev)) {
+                                    // Tính ngày GD cuối từ tháng này
+                                    let lastTxFromPrev = null;
+                                    if (c.daily) {
+                                        let latestDate = null;
+                                        Object.entries(c.daily).forEach(([h, v]) => {
+                                            if ((v || 0) > 0) {
+                                                const d = parseHeaderToDate(h);
+                                                if (d && (!latestDate || d > latestDate)) {
+                                                    latestDate = d;
+                                                    lastTxFromPrev = h;
+                                                }
+                                            }
+                                        });
+                                    }
                                     const carriedCustomer = {
                                         code: c.code || '',
                                         name: c.name || '',
                                         cardType: c.cardType || '',
                                         total: 0,           // Tháng mới: chưa có GD nào
                                         daily: {},           // Tháng mới: daily trống
-                                        _fromPrevMonth: prevMonth  // Đánh dấu là KH carry-over
+                                        _fromPrevMonth: prevMonth,  // Đánh dấu là KH carry-over
+                                        _lastTxFromPrev: lastTxFromPrev  // Ngày GD cuối tháng trước
                                     };
                                     if (c.id !== undefined && c.id !== null) carriedCustomer.id = c.id;
                                     map.set(key, carriedCustomer);
@@ -490,7 +503,7 @@ async function loadMonthData(monthKey) {
                     }
                 }
                 
-                // Thêm headers từ tháng trước để getLastTxDate() tìm được ngày GD cuối
+                // Thêm headers từ tháng trước
                 const prevHeaders = prevData?.headers || [];
                 prevHeaders.forEach(h => allHeaders.add(h));
                 
@@ -650,6 +663,10 @@ function mergeAllSheets() {
                 // Recalc total từ daily thực tế
                 existing.total = Object.values(existing.daily).reduce((s, v) => s + (Number(v) || 0), 0);
                 existing._staffList.push(sheetName);
+                // Preserve _lastTxFromPrev nếu existing chưa có
+                if (!existing._lastTxFromPrev && item._lastTxFromPrev) {
+                    existing._lastTxFromPrev = item._lastTxFromPrev;
+                }
             } else {
                 const daily = { ...(item.daily || {}) };
                 customerMap.set(key, {
@@ -659,7 +676,8 @@ function mergeAllSheets() {
                     cardType: item.cardType || '',
                     total: Object.values(daily).reduce((s, v) => s + (Number(v) || 0), 0),
                     daily,
-                    _staffList: [sheetName]
+                    _staffList: [sheetName],
+                    _lastTxFromPrev: item._lastTxFromPrev || null
                 });
             }
         });
@@ -909,12 +927,22 @@ function renderLeaderboard() {
 // Helper: tìm ngày giao dịch gần nhất của 1 khách hàng
 function getLastTxDate(item) {
     const daily = item.daily || {};
-    for (let i = dailyHeaders.length - 1; i >= 0; i--) {
-        if ((daily[dailyHeaders[i]] || 0) > 0) {
-            return dailyHeaders[i];
+    let lastDate = null;
+    let lastHeaderKey = null;
+    Object.entries(daily).forEach(([h, v]) => {
+        if ((v || 0) > 0) {
+            const d = parseHeaderToDate(h);
+            if (d && (!lastDate || d > lastDate)) {
+                lastDate = d;
+                lastHeaderKey = h;
+            }
         }
+    });
+    // Fallback: dùng ngày GD cuối từ tháng trước (carry-over)
+    if (!lastHeaderKey && item._lastTxFromPrev) {
+        return item._lastTxFromPrev;
     }
-    return null;
+    return lastHeaderKey;
 }
 
 function renderTable() {
